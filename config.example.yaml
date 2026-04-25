@@ -1,0 +1,34 @@
+# btc-paywall proxy configuration
+# Copy to config.yaml and adjust for your environment.
+
+# Address the proxy listens on.
+listen_addr: ":8080"
+
+lnd:
+  # lnd gRPC endpoint (host:port).
+  host: "lnd-server:10009"
+
+  # Path to lnd's self-signed TLS certificate.
+  # Docker Compose: /lnd/tls.cert  (via shared volume)
+  # Local dev:      ~/.lnd/tls.cert
+  tls_cert_path: "/lnd/tls.cert"
+
+  # Path to lnd's admin macaroon.
+  # Docker Compose: /lnd/data/chain/bitcoin/regtest/admin.macaroon
+  # Local dev:      ~/.lnd/data/chain/bitcoin/regtest/admin.macaroon
+  macaroon_path: "/lnd/data/chain/bitcoin/regtest/admin.macaroon"
+
+# Routes define which URL paths are protected and at what price.
+# Requests to an unlisted path receive 404.
+routes:
+  - path_prefix: "/get"
+    upstream: "http://upstream:80"
+    price_sats: 10
+
+  - path_prefix: "/post"
+    upstream: "http://upstream:80"
+    price_sats: 50
+
+  - path_prefix: "/anything"
+    upstream: "http://upstream:80"
+    price_sats: 10

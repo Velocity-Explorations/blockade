@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+# Initializes a fresh regtest environment:
+#   - mines 101 blocks so both nodes have spendable coinbase outputs
+#   - funds lnd-client via on-chain send
+#   - connects the two lnd peers
+#   - opens a channel from lnd-client → lnd-server
+#   - mines 6 blocks to confirm the channel
+#
+# Run once after `make up`. Safe to re-run (idempotent checks included).
+set -euo pipefail
+
+BTC_CLI="docker compose exec -T bitcoind bitcoin-cli -regtest -rpcuser=bitcoin -rpcpassword=bitcoin"
+LND_SERVER="docker compose exec -T lnd-server lncli --network=regtest"
+LND_CLIENT="docker compose exec -T lnd-client lncli --network=regtest"
+
+log() { echo "[setup] $*"; }
+
+# ---------------------------------------------------------------------------
+wait_for_lnd() {
+  local svc=$1
+  local cmd="docker compose exec -T $svc lncli --network=regtest getinfo"
+  log "Waiting for $svc to be ready..."
+  until $cmd > /dev/null 2>&1; do
+    sleep 3
+  done
+  log "$svc is ready"
+}
+
+# ---------------------------------------------------------------------------
+log "Waiting for bitcoind..."
+until $BTC_CLI getblockchaininfo > /dev/null 2>&1; do sleep 3; done
+log "bitcoind is ready"
+
+wait_for_lnd lnd-server
+wait_for_lnd lnd-client
+
+# ---------------------------------------------------------------------------
+log "Getting lnd-server mining address..."
+SERVER_ADDR=$($LND_SERVER newaddress p2wkh | jq -r '.address')
+log "lnd-server address: $SERVER_ADDR"
+
+log "Mining 101 blocks to lnd-server (coinbase maturity)..."
+$BTC_CLI generatetoaddress 101 "$SERVER_ADDR" > /dev/null
+
+log "Waiting for lnd-server to see on-chain balance..."
+until [ "$($LND_SERVER walletbalance | jq -r '.confirmed_balance')" -gt "0" ] 2>/dev/null; do
+  sleep 2
+done
+
+# ---------------------------------------------------------------------------
+log "Getting lnd-client address..."
+CLIENT_ADDR=$($LND_CLIENT newaddress p2wkh | jq -r '.address')
+log "lnd-client address: $CLIENT_ADDR"
+
+log "Sending 1 BTC to lnd-client..."
+$LND_SERVER sendcoins --addr="$CLIENT_ADDR" --amt=100000000 > /dev/null
+
+log "Mining 1 block to confirm..."
+$BTC_CLI generatetoaddress 1 "$SERVER_ADDR" > /dev/null
+
+log "Waiting for lnd-client to see on-chain balance..."
+until [ "$($LND_CLIENT walletbalance | jq -r '.confirmed_balance')" -gt "0" ] 2>/dev/null; do
+  sleep 2
+done
+
+# ---------------------------------------------------------------------------
+log "Connecting lnd-client → lnd-server..."
+SERVER_PUBKEY=$($LND_SERVER getinfo | jq -r '.identity_pubkey')
+# lnd-server is reachable at its service name on P2P port 9735
+$LND_CLIENT connect "${SERVER_PUBKEY}@lnd-server:9735" 2>/dev/null || true
+log "lnd-server pubkey: $SERVER_PUBKEY"
+
+# ---------------------------------------------------------------------------
+log "Opening channel: lnd-client → lnd-server (500k sats capacity)..."
+$LND_CLIENT openchannel \
+  --node_key="$SERVER_PUBKEY" \
+  --local_amt=500000 > /dev/null
+
+log "Mining 6 blocks to confirm channel..."
+$BTC_CLI generatetoaddress 6 "$SERVER_ADDR" > /dev/null
+
+log "Waiting for channel to be active..."
+until [ "$($LND_CLIENT listchannels | jq '[.channels[] | select(.active == true)] | length')" -gt "0" ] 2>/dev/null; do
+  sleep 3
+done
+
+# ---------------------------------------------------------------------------
+log ""
+log "=============================="
+log " Regtest setup complete!"
+log "=============================="
+log ""
+log "lnd-server pubkey : $SERVER_PUBKEY"
+log "Channel capacity  : 500,000 sats"
+log ""
+log "To test the paywall:"
+log "  1. curl -v http://localhost:8080/get"
+log "     → 402 + WWW-Authenticate: L402 macaroon=\"...\", invoice=\"lnbc...\""
+log ""
+log "  2. Pay the invoice from lnd-client:"
+log "     docker compose exec lnd-client lncli --network=regtest payinvoice <bolt11>"
+log "     → note the payment_preimage"
+log ""
+log "  3. Retry with token:"
+log "     curl -H 'Authorization: L402 <macaroon>:<preimage>' http://localhost:8080/get"
+log "     → 200 OK"

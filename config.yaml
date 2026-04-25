@@ -1,0 +1,19 @@
+listen_addr: ":8080"
+
+lnd:
+  host: "lnd-server:10009"
+  tls_cert_path: "/lnd/tls.cert"
+  macaroon_path: "/lnd/data/chain/bitcoin/regtest/admin.macaroon"
+
+routes:
+  - path_prefix: "/get"
+    upstream: "http://upstream:80"
+    price_sats: 10
+
+  - path_prefix: "/post"
+    upstream: "http://upstream:80"
+    price_sats: 50
+
+  - path_prefix: "/anything"
+    upstream: "http://upstream:80"
+    price_sats: 10
