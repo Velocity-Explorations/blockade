@@ -100,6 +100,44 @@ The proxy (`internal/proxy/proxy.go`) calls only this interface. The Lightning i
 - `jq` (used by the setup script)
 - Go 1.22+ (only needed for local development outside Docker)
 
+## Infrastructure Requirements
+
+This stack runs five containers simultaneously. These are the resource requirements for running on a VM or remote machine.
+
+**Per-service RAM profile:**
+
+| Service | RAM | Notes |
+|---|---|---|
+| `bitcoind` | ~300 MB | regtest — no chain to sync, starts immediately |
+| `lnd-server` | ~300 MB | briefly CPU-intensive at wallet init |
+| `lnd-client` | ~300 MB | same |
+| `httpbin` | ~150 MB | Python + Gunicorn |
+| `proxy` | ~75 MB | lightweight Go binary |
+| Docker daemon + OS | ~400 MB | baseline |
+| **Total** | **~1.5 GB** | |
+
+**Disk:**
+
+`docker-compose.yml` uses `build: .`, so `make up` runs a full Go build inside Docker on first run. The builder downloads all of lnd's transitive dependencies before compiling.
+
+| Item | Size |
+|---|---|
+| Docker images (all services) | ~1 GB |
+| Docker build cache (Go deps + compilation) | ~3–4 GB |
+| lnd / bitcoind volume data (regtest) | < 100 MB |
+| OS + Docker install | ~3 GB |
+| **Total** | **~8 GB used** |
+
+**Recommended VM sizing:**
+
+| Resource | Minimum | Comfortable |
+|---|---|---|
+| vCPU | 2 | 2 |
+| RAM | 4 GB | 8 GB |
+| Disk | 20 GB | 40 GB |
+
+Two vCPUs matter during `make setup`: lnd wallet initialisation on both nodes runs concurrently and briefly saturates a single core. The 40 GB recommendation applies if you plan to do active development on the VM (Go toolchain, module cache, build artifacts). For a pure runtime target, 20 GB is sufficient.
+
 ## Getting Started
 
 ### 1. Start the stack
