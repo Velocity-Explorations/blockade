@@ -70,7 +70,7 @@ btc-paywall/
 │   └── bitcoin/bitcoin.conf            # bitcoind regtest configuration
 │
 ├── scripts/
-│   └── setup-regtest.sh                # One-time regtest initialisation: mines
+│   └── setup-regtest.sh                # One-time regtest initialization: mines
 │                                       # blocks, funds nodes, opens a channel
 │
 ├── docs/
@@ -136,7 +136,7 @@ This stack runs five containers simultaneously. These are the resource requireme
 | RAM | 4 GB | 8 GB |
 | Disk | 20 GB | 40 GB |
 
-Two vCPUs matter during `make setup`: lnd wallet initialisation on both nodes runs concurrently and briefly saturates a single core. The 40 GB recommendation applies if you plan to do active development on the VM (Go toolchain, module cache, build artifacts). For a pure runtime target, 20 GB is sufficient.
+Two vCPUs matter during `make setup`: lnd wallet initialization on both nodes runs concurrently and briefly saturates a single core. The 40 GB recommendation applies if you plan to do active development on the VM (Go toolchain, module cache, build artifacts). For a pure runtime target, 20 GB is sufficient.
 
 ## Getting Started
 
@@ -158,7 +158,7 @@ This builds the proxy image and starts five services:
 
 The proxy and lnd-server share a Docker volume so the proxy can read lnd's TLS certificate and admin macaroon automatically.
 
-### 2. Initialise regtest (run once)
+### 2. Initialize regtest (run once)
 
 ```bash
 make setup
@@ -174,6 +174,8 @@ This script:
 After setup, the channel is active and the client node can pay the server's invoices.
 
 ### 3. Test the paywall
+
+> **Shortcut:** `make e2e-test` runs Steps 1–3 below as a single scripted flow — it requests `/get`, parses the macaroon and invoice from the `WWW-Authenticate` header, pays the invoice from `lnd-client`, retries with the resulting L402 token, and asserts a `200 OK`. Use it as a smoke test after `make up && make setup`. The manual walkthrough below is still useful for understanding what each step does and for exercising Step 4 (anti-replay).
 
 **Step 1 — Hit a protected endpoint without a token:**
 
@@ -266,7 +268,8 @@ Run `docker volume inspect btc-paywall_lnd-server-data` to find where Docker sto
 | Target | Description |
 |---|---|
 | `make up` | Build and start all Docker Compose services |
-| `make setup` | Initialise regtest (mine blocks, open channel) |
+| `make setup` | Initialize regtest (mine blocks, open channel) |
+| `make e2e-test` | Run the full 402 → pay → 200 paywall flow against the running stack |
 | `make down` | Stop containers (data volumes preserved) |
 | `make clean` | Stop containers and delete all data volumes |
 | `make logs` | Tail logs for all services |
