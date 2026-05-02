@@ -74,7 +74,9 @@ btc-paywall/
 │                                       # blocks, funds nodes, opens a channel
 │
 ├── docs/
-│   └── initial-plan.md                 # Architecture decision record for this POC
+│   ├── initial-plan.md                 # Architecture decision record for this POC
+│   └── e2e-walkthrough.md              # In-depth walkthrough of the end-to-end test
+│                                       # and what it proves about the paywall
 │
 ├── config.yaml                         # Active config (pre-wired for Docker Compose)
 ├── config.example.yaml                 # Annotated reference config
@@ -176,6 +178,8 @@ After setup, the channel is active and the client node can pay the server's invo
 ### 3. Test the paywall
 
 > **Shortcut:** `make e2e-test` runs Steps 1–3 below as a single scripted flow — it requests `/get`, parses the macaroon and invoice from the `WWW-Authenticate` header, pays the invoice from `lnd-client`, retries with the resulting L402 token, and asserts a `200 OK`. Use it as a smoke test after `make up && make setup`. The manual walkthrough below is still useful for understanding what each step does and for exercising Step 4 (anti-replay).
+>
+> For a deeper, code-referenced explanation of *why* each step exists, what cryptographic guarantees it provides, and what the POC deliberately does and does not prove, see [`docs/e2e-walkthrough.md`](docs/e2e-walkthrough.md).
 
 **Step 1 — Hit a protected endpoint without a token:**
 
