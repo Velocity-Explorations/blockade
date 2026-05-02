@@ -1,0 +1,107 @@
+services:
+
+  bitcoind:
+    image: bitcoin/bitcoin:27.1
+    command:
+      - bitcoind
+      - -conf=/bitcoin.conf
+      - -datadir=/data
+      - -regtest
+    volumes:
+      - ./docker/bitcoin/bitcoin.conf:/bitcoin.conf:ro
+      - bitcoind-data:/data
+    ports:
+      - "18443:18443"   # RPC (for host-side bitcoin-cli)
+    networks:
+      - paywall
+    healthcheck:
+      test: ["CMD", "bitcoin-cli", "-regtest", "-rpcuser=bitcoin", "-rpcpassword=bitcoin", "getblockchaininfo"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  lnd-server:
+    image: lightninglabs/lnd:v0.18.4-beta
+    command:
+      - lnd
+      - --noseedbackup
+      - --bitcoin.active
+      - --bitcoin.regtest
+      - --bitcoin.node=bitcoind
+      - --bitcoind.rpchost=bitcoind:18443
+      - --bitcoind.rpcuser=bitcoin
+      - --bitcoind.rpcpass=bitcoin
+      - --bitcoind.zmqpubrawblock=tcp://bitcoind:28332
+      - --bitcoind.zmqpubrawtx=tcp://bitcoind:28333
+      - --rpclisten=0.0.0.0:10009
+      - --restlisten=0.0.0.0:8080
+      - --listen=0.0.0.0:9735
+      - --tlsextradomain=lnd-server
+      - --accept-keysend
+    depends_on:
+      bitcoind:
+        condition: service_healthy
+    ports:
+      - "10009:10009"   # gRPC (for host-side lncli)
+      - "8081:8080"     # REST (8081 to avoid conflict with proxy on 8080)
+    volumes:
+      - lnd-server-data:/root/.lnd
+    networks:
+      - paywall
+
+  lnd-client:
+    image: lightninglabs/lnd:v0.18.4-beta
+    command:
+      - lnd
+      - --noseedbackup
+      - --bitcoin.active
+      - --bitcoin.regtest
+      - --bitcoin.node=bitcoind
+      - --bitcoind.rpchost=bitcoind:18443
+      - --bitcoind.rpcuser=bitcoin
+      - --bitcoind.rpcpass=bitcoin
+      - --bitcoind.zmqpubrawblock=tcp://bitcoind:28332
+      - --bitcoind.zmqpubrawtx=tcp://bitcoind:28333
+      - --rpclisten=0.0.0.0:10009
+      - --restlisten=0.0.0.0:8080
+      - --listen=0.0.0.0:9736
+      - --tlsextradomain=lnd-client
+      - --accept-keysend
+    depends_on:
+      bitcoind:
+        condition: service_healthy
+    ports:
+      - "10010:10009"   # gRPC (different host port)
+      - "8082:8080"     # REST
+    volumes:
+      - lnd-client-data:/root/.lnd
+    networks:
+      - paywall
+
+  upstream:
+    image: kennethreitz/httpbin
+    networks:
+      - paywall
+
+  proxy:
+    build: .
+    command: ["-config", "/config/config.yaml"]
+    depends_on:
+      - lnd-server
+      - upstream
+    ports:
+      - "8080:8080"
+    volumes:
+      - lnd-server-data:/lnd:ro   # proxy reads TLS cert + macaroon from lnd-server's data dir
+      - ./config.yaml:/config/config.yaml:ro
+    networks:
+      - paywall
+
+volumes:
+  bitcoind-data:
+  lnd-server-data:
+  lnd-client-data:
+
+networks:
+  paywall:
+    driver: bridge
