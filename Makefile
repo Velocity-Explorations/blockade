@@ -1,4 +1,5 @@
-.PHONY: up down setup logs build test e2e-test clean deps
+.PHONY: up down setup logs build test e2e-test clean deps \
+        up-keycloak down-keycloak setup-keycloak e2e-keycloak-test
 
 ## Start all Docker Compose services
 up:
@@ -38,3 +39,29 @@ clean:
 ## Download Go dependencies
 deps:
 	go mod tidy
+
+## --- Second POC: Keycloak login paywall (examples/keycloak-login/) -----
+
+## Start the existing stack PLUS Keycloak and the keycloak-paywall service.
+## Keycloak takes ~30s on first boot to import the realm.
+up-keycloak:
+	docker compose --profile keycloak up -d --build
+
+## The Keycloak realm is auto-imported by Keycloak's --import-realm flag.
+## You still need `make setup` once for the Lightning channel.
+setup-keycloak:
+	@echo "Keycloak realm is auto-imported on first start; nothing to do here."
+	@echo "If you have not yet opened the Lightning channel, run: make setup"
+
+## Run the end-to-end Keycloak paywall flow:
+## 402 -> pay invoice from lnd-client -> POST creds -> 200 + JWT
+## Plus a phase that proves failed-login attempts also consume the token.
+e2e-keycloak-test:
+	bash examples/keycloak-login/scripts/e2e-keycloak.sh
+
+## Stop only the Keycloak-profile services (leaves the original POC running).
+down-keycloak:
+	docker compose --profile keycloak down
+
+clean-keycloak:
+	docker compose --profile keycloak down -v

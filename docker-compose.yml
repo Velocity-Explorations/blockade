@@ -97,6 +97,53 @@ services:
     networks:
       - paywall
 
+  # ----------------------------------------------------------------------
+  # Second POC: Keycloak login paywall (see examples/keycloak-login/).
+  # All three services below are gated by `profiles: [keycloak]`, so they
+  # are NOT started by `make up`. Use `make up-keycloak` instead.
+  # ----------------------------------------------------------------------
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    profiles: [keycloak]
+    command:
+      - start-dev
+      - --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    volumes:
+      - ./examples/keycloak-login/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+    ports:
+      - "8091:8080"   # direct introspection (e.g. /userinfo, /.well-known/openid-configuration)
+    healthcheck:
+      # Keycloak's UBI image has no curl/wget; bash /dev/tcp confirms the listener is up.
+      # Realm import readiness is verified separately by the e2e script.
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080"]
+      interval: 5s
+      timeout: 3s
+      retries: 40
+      start_period: 30s
+    networks:
+      - paywall
+
+  keycloak-paywall:
+    build: .
+    profiles: [keycloak]
+    command: ["-config", "/config/keycloak.yaml"]
+    depends_on:
+      lnd-server:
+        condition: service_started
+      keycloak:
+        condition: service_healthy
+    ports:
+      - "8090:8090"
+    volumes:
+      - lnd-server-data:/lnd:ro
+      - ./examples/keycloak-login/config.yaml:/config/keycloak.yaml:ro
+    networks:
+      - paywall
+
 volumes:
   bitcoind-data:
   lnd-server-data:
