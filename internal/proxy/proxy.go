@@ -65,6 +65,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "invalid or already-used payment token", http.StatusUnauthorized)
 			return
 		}
+		// Don't leak the proxy's own L402 credentials to the upstream;
+		// upstream may have its own Authorization scheme (e.g. Keycloak Basic).
+		r.Header.Del("Authorization")
 		rt.rp.ServeHTTP(w, r)
 		return
 	}

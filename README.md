@@ -96,6 +96,20 @@ type PaymentVerifier interface {
 
 The proxy (`internal/proxy/proxy.go`) calls only this interface. The Lightning implementation (`internal/payment/lightning/`) is one backend. Future backends — proof-of-work, on-chain transactions, hybrid — implement the same two methods without touching the proxy core.
 
+## Second POC: Keycloak login paywall
+
+A second proof-of-concept lives under [`examples/keycloak-login/`](examples/keycloak-login/). It puts the same L402 paywall in front of Keycloak's OIDC token endpoint to demonstrate the most directly compelling defense use case: **every credential submission costs sats, including failed ones**. Credential stuffing is no longer free even against an attacker who guesses wrong every time.
+
+The Keycloak POC reuses the existing proxy binary unchanged (one binary, two configs) and is started under a Docker Compose `keycloak` profile so it does not interfere with the original demo:
+
+```bash
+make up && make setup        # original stack + Lightning channel (one-time)
+make up-keycloak             # adds Keycloak + a second proxy instance
+make e2e-keycloak-test       # runs the three-phase end-to-end test
+```
+
+See [`examples/keycloak-login/README.md`](examples/keycloak-login/README.md) for the full walkthrough and [`docs/keycloak-poc-plan.md`](docs/keycloak-poc-plan.md) for the design rationale.
+
 ## Prerequisites
 
 - [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/) (v2)
@@ -274,6 +288,9 @@ Run `docker volume inspect btc-paywall_lnd-server-data` to find where Docker sto
 | `make up` | Build and start all Docker Compose services |
 | `make setup` | Initialize regtest (mine blocks, open channel) |
 | `make e2e-test` | Run the full 402 → pay → 200 paywall flow against the running stack |
+| `make up-keycloak` | Start the Keycloak POC services (additive over `make up`) |
+| `make down-keycloak` | Stop only the Keycloak POC services |
+| `make e2e-keycloak-test` | Run the three-phase Keycloak credential-stuffing-defeat e2e test |
 | `make down` | Stop containers (data volumes preserved) |
 | `make clean` | Stop containers and delete all data volumes |
 | `make logs` | Tail logs for all services |

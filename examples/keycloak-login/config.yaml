@@ -1,0 +1,14 @@
+listen_addr: ":8090"
+
+lnd:
+  host: "lnd-server:10009"
+  tls_cert_path: "/lnd/tls.cert"
+  macaroon_path: "/lnd/data/chain/bitcoin/regtest/admin.macaroon"
+
+routes:
+  # Gate Keycloak's OIDC Direct Access Grants (password) endpoint.
+  # Every credential submission costs 100 sats, regardless of whether
+  # Keycloak ultimately accepts the credentials.
+  - path_prefix: "/realms/btc-paywall/protocol/openid-connect/token"
+    upstream: "http://keycloak:8080"
+    price_sats: 100

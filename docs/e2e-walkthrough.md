@@ -86,3 +86,18 @@ That is the minimum evidence required to claim the architecture works. Everythin
 | Per-request price plumbing via `context.Context` | `internal/payment/lightning/verifier.go` (`WithPrice`, `priceSatsKey`) |
 
 The most important architectural constraint, repeated from `CLAUDE.md`: `internal/proxy/proxy.go` only depends on the `payment.PaymentVerifier` interface. Replacing Lightning with proof-of-work, on-chain payments, or a hybrid scheme is a matter of writing a new `Verifier` implementation, not touching the proxy.
+
+## Note on the upstream `Authorization` header
+
+After L402 verification succeeds, the proxy now strips the `Authorization` header from the request before forwarding to the upstream (`internal/proxy/proxy.go`). This is correct hygiene — a proxy's own credentials should not leak to the upstream — and is a prerequisite for the second POC, where the upstream (Keycloak) may have its own `Authorization`-based auth scheme that would otherwise collide. A side effect for this walkthrough: the manual `httpbin` demo no longer echoes the L402 token back in its response body, because httpbin only sees the request *after* the header is removed. Status codes are unchanged.
+
+## Extension: from "any HTTP endpoint" to "credential validation"
+
+The companion POC at [`../examples/keycloak-login/`](../examples/keycloak-login/) maps this same primitive onto a concrete defense problem: **credential stuffing**. The proxy is repointed at Keycloak's OIDC token endpoint, and the four properties above acquire a sharper interpretation:
+
+- *Access is gated by default* → no login attempt can be made without an L402 token.
+- *Cryptographically bound to a real economic event* → the macaroon issued for this 402 is one-shot and tied to a specific paid invoice.
+- *Verifiable cryptographic trace* → unchanged; the lnd settlement check is the same.
+- *Token consumed before forwarding* → this is the load-bearing property for credential stuffing. The token is spent the moment the request passes verification, **before** Keycloak sees the credentials. So whether the password is right or wrong, the sats are gone. There is no refund-on-failure path that would re-introduce the cost asymmetry attackers rely on.
+
+The Keycloak POC's `e2e-keycloak.sh` script demonstrates this in three phases (happy path, failed-login-still-costs, anti-replay) and distinguishes "Keycloak rejected the credentials" from "the proxy rejected the token" by inspecting response bodies — making the "failed logins also cost" claim concretely testable, not just asserted.
