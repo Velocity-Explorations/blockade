@@ -44,6 +44,25 @@ When adding features to the proxy layer, keep them backend-agnostic. When adding
 
 The per-request price is passed via context (`payment.WithPrice`) rather than as a function argument, so the interface stays clean across backends that may not use sat-denominated pricing.
 
+## Rate limiting
+
+`internal/proxy/proxy.go` implements optional per-IP token-bucket rate limiting on the `IssueChallenge` path (unauthenticated requests only). Authenticated requests carrying a valid payment token are never limited.
+
+**Algorithm:** `golang.org/x/time/rate` token bucket. Each source IP gets its own bucket refilling at `requests_per_second` tokens/s with a maximum burst of `burst` tokens. Excess requests get `429 Too Many Requests`.
+
+**Config:**
+```yaml
+rate_limit:
+  requests_per_second: 5
+  burst: 10
+```
+
+Omitting `rate_limit` entirely disables the feature — `proxy.New()` receives `nil` and skips all limiter setup.
+
+**Memory management:** a background goroutine (started once in `New()` when rate limiting is enabled) evicts IP entries not seen in the last 10 minutes, running every 5 minutes. This prevents unbounded map growth under sustained unique-IP traffic. The goroutine is not stopped on shutdown — it lives for the process lifetime, which is acceptable for a POC.
+
+**Note on IP extraction:** `clientIP()` uses `r.RemoteAddr`. For deployments behind a trusted reverse proxy (nginx, etc.), update `clientIP()` to read `X-Real-IP` or the first entry of `X-Forwarded-For` instead.
+
 ## Critical dependency: protobuf replace directive
 
 `go.mod` contains:
@@ -122,6 +141,6 @@ Both scripts require `jq` on the host.
 
 ## What this project is not
 
-- Not a production system — no persistent token store, no rate limiting, no metrics
+- Not a production system — no persistent token store, no metrics
 - Not a general-purpose API gateway — routing is path-prefix only, no auth passthrough
 - Not a wallet — the proxy never holds or moves funds directly; payment logic is delegated to lnd (Lightning backend) or bitcoind (on-chain backend)
