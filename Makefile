@@ -1,6 +1,7 @@
 .PHONY: up down setup logs build test e2e-test clean deps \
-        up-keycloak down-keycloak setup-keycloak e2e-keycloak-test \
-        up-onchain down-onchain setup-onchain e2e-onchain-test clean-onchain
+        up-keycloak down-keycloak setup-keycloak e2e-keycloak-test clean-keycloak \
+        up-onchain down-onchain setup-onchain e2e-onchain-test clean-onchain \
+        up-onchain-keycloak down-onchain-keycloak setup-onchain-keycloak e2e-onchain-keycloak-test clean-onchain-keycloak
 
 ## Start all Docker Compose services
 up:
@@ -80,7 +81,7 @@ setup-onchain:
 	bash scripts/setup-onchain.sh
 
 ## Run the end-to-end on-chain paywall flow:
-## 402 -> sendcoins from lnd-client -> present address token -> 200
+## 402 -> pay via bitcoin-cli (tester wallet) -> present address token -> 200
 ## Plus anti-replay and unpaid-address probes.
 e2e-onchain-test:
 	bash examples/onchain-btc/scripts/e2e-onchain.sh
@@ -91,3 +92,28 @@ down-onchain:
 
 clean-onchain:
 	docker compose --profile onchain down -v
+
+## --- Fourth POC: on-chain BTC + Keycloak (examples/onchain-keycloak/) ---
+
+## Start bitcoind + Keycloak + onchain-keycloak-paywall. No lnd required.
+## Keycloak takes ~30s on first boot to import the realm.
+up-onchain-keycloak:
+	docker compose --profile onchain-keycloak up -d --build bitcoind keycloak onchain-keycloak-paywall
+
+## Create/fund the bitcoind wallets needed for the e2e test.
+## Keycloak realm is auto-imported on first boot; nothing else to do.
+setup-onchain-keycloak:
+	bash scripts/setup-onchain.sh
+
+## Run the end-to-end on-chain + Keycloak paywall flow:
+## 402 -> pay via bitcoin-cli -> POST creds -> 200 + JWT
+## Plus failed-login and anti-replay phases.
+e2e-onchain-keycloak-test:
+	bash examples/onchain-keycloak/scripts/e2e-onchain-keycloak.sh
+
+## Stop only the onchain-keycloak-profile services.
+down-onchain-keycloak:
+	docker compose --profile onchain-keycloak down
+
+clean-onchain-keycloak:
+	docker compose --profile onchain-keycloak down -v

@@ -1,0 +1,11 @@
+listen_addr: ":8093"
+
+bitcoind:
+  host: "bitcoind:18443"
+  rpc_user: "bitcoin"
+  rpc_password: "bitcoin"
+
+routes:
+  - path_prefix: "/realms/btc-paywall/protocol/openid-connect/token"
+    upstream: "http://keycloak:8080"
+    price_sats: 1000

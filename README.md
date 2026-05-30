@@ -4,11 +4,12 @@ A proof-of-concept HTTP reverse proxy that gates access to protected resources b
 
 Three payment backends are implemented in this repository, each as a self-contained POC:
 
-| POC | Backend | Token scheme | Port |
-|---|---|---|---|
-| 1 | Lightning L402 (httpbin upstream) | `L402 <macaroon>:<preimage>` | 8080 |
-| 2 | Lightning L402 (Keycloak OIDC upstream) | `L402 <macaroon>:<preimage>` | 8090 |
-| 3 | On-chain Bitcoin | `BTC-Onchain <address>` | 8092 |
+| POC | Backend | Upstream | Token scheme | Port |
+|---|---|---|---|---|
+| 1 | Lightning L402 | httpbin | `L402 <macaroon>:<preimage>` | 8080 |
+| 2 | Lightning L402 | Keycloak OIDC | `L402 <macaroon>:<preimage>` | 8090 |
+| 3 | On-chain Bitcoin | httpbin | `BTC-Onchain <address>` | 8092 |
+| 4 | On-chain Bitcoin | Keycloak OIDC | `BTC-Onchain <address>` | 8093 |
 
 All three run from the same compiled binary; the active backend is selected by config.
 
@@ -66,12 +67,14 @@ btc-paywall/
 │
 ├── examples/
 │   ├── keycloak-login/                 # POC 2: L402 in front of Keycloak OIDC
-│   └── onchain-btc/                    # POC 3: on-chain Bitcoin payment backend
+│   ├── onchain-btc/                    # POC 3: on-chain Bitcoin, httpbin upstream
+│   └── onchain-keycloak/               # POC 4: on-chain Bitcoin, Keycloak upstream
 │
 ├── docs/
 │   ├── e2e-walkthrough.md              # In-depth walkthrough of the POC 1 e2e test
 │   ├── keycloak-poc-plan.md            # Design rationale for POC 2
-│   └── onchain-btc-poc-plan.md         # Design rationale for POC 3
+│   ├── onchain-btc-poc-plan.md         # Design rationale for POC 3
+│   └── onchain-keycloak-poc-plan.md    # Design rationale for POC 4
 │
 ├── config.yaml                         # POC 1 config (pre-wired for Docker Compose)
 ├── docker-compose.yml                  # Full local stack (all three POCs)
@@ -281,6 +284,31 @@ make clean-onchain   # stop + delete on-chain volumes
 
 ---
 
+## POC 4: On-Chain BTC + Keycloak Login Paywall
+
+Completes the matrix: the on-chain Bitcoin backend in front of Keycloak's OIDC token endpoint. Every credential submission — successful or failed — requires a fresh on-chain Bitcoin payment. No lnd node is needed on the defender's side.
+
+The economic character differs from POC 2 in a meaningful way: the attacker must fund on-chain UTXOs and pay miner fees per attempt rather than maintaining a Lightning wallet. The floor is higher and the friction is greater, at the cost of slower confirmation and a simpler (less cryptographic) token scheme.
+
+See [`examples/onchain-keycloak/README.md`](examples/onchain-keycloak/README.md) for the full walkthrough and [`docs/onchain-keycloak-poc-plan.md`](docs/onchain-keycloak-poc-plan.md) for the design rationale.
+
+### Quick start
+
+```bash
+make up-onchain-keycloak        # starts bitcoind + Keycloak + onchain-keycloak-paywall (:8093)
+make setup-onchain-keycloak     # creates wallets, mines test funds (run once)
+make e2e-onchain-keycloak-test  # three-phase test: valid creds, wrong creds, anti-replay
+```
+
+### Tear down
+
+```bash
+make down-onchain-keycloak    # stop on-chain+Keycloak profile services only
+make clean-onchain-keycloak   # stop + delete volumes
+```
+
+---
+
 ## Configuration
 
 `config.yaml` controls the proxy. The Docker Compose setup mounts it read-only inside the container. Exactly one backend section (`lnd` or `bitcoind`) must be present.
@@ -379,8 +407,18 @@ Run `docker volume inspect btc-paywall_lnd-server-data` to find where Docker sto
 
 | Target | Description |
 |---|---|
-| `make up-onchain` | Start on-chain proxy on :8092 (additive over `make up`) |
-| `make setup-onchain` | Create the bitcoind "paywall" wallet (run once after `make up-onchain`) |
+| `make up-onchain` | Start on-chain proxy on :8092 (bitcoind + httpbin only, no lnd) |
+| `make setup-onchain` | Create bitcoind wallets and mine test funds (run once) |
 | `make e2e-onchain-test` | Three-phase on-chain e2e: happy path, anti-replay, unpaid address |
 | `make down-onchain` | Stop on-chain profile services only |
 | `make clean-onchain` | Stop on-chain profile services and delete their volumes |
+
+**POC 4 — On-chain BTC + Keycloak login paywall:**
+
+| Target | Description |
+|---|---|
+| `make up-onchain-keycloak` | Start bitcoind + Keycloak + on-chain proxy on :8093 (no lnd) |
+| `make setup-onchain-keycloak` | Create bitcoind wallets and mine test funds (run once) |
+| `make e2e-onchain-keycloak-test` | Three-phase e2e: valid creds, wrong creds, anti-replay |
+| `make down-onchain-keycloak` | Stop on-chain+Keycloak profile services only |
+| `make clean-onchain-keycloak` | Stop on-chain+Keycloak profile services and delete their volumes |
