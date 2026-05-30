@@ -296,6 +296,12 @@
     <h2>Send on-chain Bitcoin</h2>
     <p class="explanation">Send exactly the required amount to the address. The proxy checks the mempool — no block confirmation needed (0-conf).</p>
 
+    <div class="alert alert-info" style="margin-top:12px">
+      <strong>Prerequisites:</strong> run these once before using this mode:
+      <div class="code-block" style="margin-top:8px;color:#94a3b8">make up-onchain &amp;&amp; make setup-onchain</div>
+      <code>setup-onchain</code> creates the <code>tester</code> wallet with funded regtest coins used by the payment command below.
+    </div>
+
     <div class="field">
       <label>Pay to address</label>
       <div class="code-row">
@@ -308,7 +314,7 @@
       <div class="code-block" id="amount-display"></div>
     </div>
     <div class="field">
-      <label>Run this in your terminal (uses the regtest <code style="color:var(--orange)">tester</code> wallet)</label>
+      <label>Run this in your terminal to pay from the funded <code style="color:var(--orange)">tester</code> wallet</label>
       <div class="code-row">
         <div class="code-block" id="pay-cmd-onchain"></div>
         <button class="btn-copy" onclick="copyText('pay-cmd-onchain', this)">📋 Copy</button>
@@ -318,6 +324,9 @@
     <div class="row">
       <button class="btn btn-primary" onclick="checkOnchain()">Check Payment →</button>
     </div>
+    <p class="explanation" style="margin-top:10px">
+      After running the command, click <strong>Check Payment</strong>. The proxy verifies the mempool and grants access — no preimage needed for on-chain payments.
+    </p>
     <div id="pending-alert" class="alert alert-warn hidden">
       Payment not seen yet. Run the command above, then click again.
     </div>
