@@ -9,7 +9,6 @@ import (
 
 	"github.com/TheFutonEng/btc-paywall/internal/config"
 	"github.com/TheFutonEng/btc-paywall/internal/payment"
-	"github.com/TheFutonEng/btc-paywall/internal/payment/lightning"
 )
 
 // route pairs a path prefix with a reverse proxy to its upstream and the
@@ -53,7 +52,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	authHeader := r.Header.Get("Authorization")
-	token, hasToken := lightning.ExtractToken(authHeader)
+	token, hasToken := h.verifier.ExtractToken(authHeader)
 
 	if hasToken {
 		valid, err := h.verifier.VerifyProof(token)
@@ -72,7 +71,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx := lightning.WithPrice(r.Context(), rt.priceSats)
+	ctx := payment.WithPrice(r.Context(), rt.priceSats)
 	if err := h.verifier.IssueChallenge(w, r.WithContext(ctx)); err != nil {
 		http.Error(w, "failed to create payment challenge", http.StatusInternalServerError)
 	}

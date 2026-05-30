@@ -1,0 +1,14 @@
+listen_addr: ":8092"
+
+bitcoind:
+  host: "bitcoind:18443"
+  rpc_user: "bitcoin"
+  rpc_password: "bitcoin"
+
+routes:
+  - path_prefix: "/get"
+    upstream: "http://upstream:80"
+    price_sats: 1000
+  - path_prefix: "/post"
+    upstream: "http://upstream:80"
+    price_sats: 5000

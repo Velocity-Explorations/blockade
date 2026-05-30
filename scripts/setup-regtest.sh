@@ -26,6 +26,15 @@ wait_for_lnd() {
   log "$svc is ready"
 }
 
+wait_for_chain_sync() {
+  local svc=$1
+  log "Waiting for $svc to sync to chain tip..."
+  until [ "$(docker compose exec -T "$svc" lncli --network=regtest getinfo 2>/dev/null | jq -r '.synced_to_chain')" = "true" ]; do
+    sleep 2
+  done
+  log "$svc synced to chain tip"
+}
+
 # ---------------------------------------------------------------------------
 log "Waiting for bitcoind..."
 until $BTC_CLI getblockchaininfo > /dev/null 2>&1; do sleep 3; done
@@ -42,6 +51,9 @@ log "lnd-server address: $SERVER_ADDR"
 log "Mining 101 blocks to lnd-server (coinbase maturity)..."
 $BTC_CLI generatetoaddress 101 "$SERVER_ADDR" > /dev/null
 
+log "Waiting for lnd-server to sync to chain tip..."
+wait_for_chain_sync lnd-server
+
 log "Waiting for lnd-server to see on-chain balance..."
 until [ "$($LND_SERVER walletbalance | jq -r '.confirmed_balance')" -gt "0" ] 2>/dev/null; do
   sleep 2
@@ -57,6 +69,9 @@ $LND_SERVER sendcoins --addr="$CLIENT_ADDR" --amt=100000000 > /dev/null
 
 log "Mining 1 block to confirm..."
 $BTC_CLI generatetoaddress 1 "$SERVER_ADDR" > /dev/null
+
+wait_for_chain_sync lnd-server
+wait_for_chain_sync lnd-client
 
 log "Waiting for lnd-client to see on-chain balance..."
 until [ "$($LND_CLIENT walletbalance | jq -r '.confirmed_balance')" -gt "0" ] 2>/dev/null; do
