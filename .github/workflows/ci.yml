@@ -24,6 +24,22 @@ jobs:
       - run: go test ./...
 
   # -------------------------------------------------------------------------
+  # Static analysis — runs in parallel with build.
+  # -------------------------------------------------------------------------
+  lint:
+    name: Lint (golangci-lint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          version: latest
+
+  # -------------------------------------------------------------------------
   # E2E jobs — all run in parallel once build passes.
   # -------------------------------------------------------------------------
 

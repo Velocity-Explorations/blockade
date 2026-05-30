@@ -29,11 +29,13 @@ func main() {
 		if err != nil {
 			log.Fatalf("connect to lnd: %v", err)
 		}
-		defer lndClient.Close()
 		lnVerifier, err := lightning.NewVerifier(lndClient)
 		if err != nil {
+			_ = lndClient.Close()
 			log.Fatalf("create lightning verifier: %v", err)
 		}
+		// lndClient is not deferred — the process lifetime equals the server
+		// lifetime; the OS reclaims the gRPC connection on exit.
 		verifier = lnVerifier
 
 	case cfg.Bitcoind != nil:

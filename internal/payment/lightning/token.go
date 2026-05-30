@@ -16,15 +16,6 @@ type token struct {
 	preimage []byte
 }
 
-// encodeToken serialises an L402 token as "<base64(macaroon)>:<hex(preimage)>".
-func encodeToken(m *macaroon.Macaroon, preimage []byte) (string, error) {
-	raw, err := m.MarshalBinary()
-	if err != nil {
-		return "", fmt.Errorf("marshal macaroon: %w", err)
-	}
-	return base64.StdEncoding.EncodeToString(raw) + ":" + hex.EncodeToString(preimage), nil
-}
-
 // decodeToken parses "<base64(macaroon)>:<hex(preimage)>" into a token.
 func decodeToken(s string) (*token, error) {
 	parts := strings.SplitN(s, ":", 2)
