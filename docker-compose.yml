@@ -105,7 +105,7 @@ services:
 
   keycloak:
     image: quay.io/keycloak/keycloak:26.0
-    profiles: [keycloak]
+    profiles: [keycloak, onchain-keycloak]
     command:
       - start-dev
       - --import-realm
@@ -161,6 +161,28 @@ services:
       - "8092:8092"
     volumes:
       - ./examples/onchain-btc/config.yaml:/config/onchain.yaml:ro
+    networks:
+      - paywall
+
+  # ----------------------------------------------------------------------
+  # Fourth POC: on-chain BTC + Keycloak (see examples/onchain-keycloak/).
+  # Gated by `profiles: [onchain-keycloak]`; use `make up-onchain-keycloak`.
+  # Requires no lnd — pays via bitcoind "tester" wallet.
+  # ----------------------------------------------------------------------
+
+  onchain-keycloak-paywall:
+    build: .
+    profiles: [onchain-keycloak]
+    command: ["-config", "/config/onchain-keycloak.yaml"]
+    depends_on:
+      bitcoind:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    ports:
+      - "8093:8093"
+    volumes:
+      - ./examples/onchain-keycloak/config.yaml:/config/onchain-keycloak.yaml:ro
     networks:
       - paywall
 
