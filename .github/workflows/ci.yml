@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  # -------------------------------------------------------------------------
+  # Fast gate: build + vet + test. Runs before e2e to avoid burning Docker
+  # minutes on a broken Go change.
+  # -------------------------------------------------------------------------
+  build:
+    name: Build & vet
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go build ./...
+      - run: go vet ./...
+      - run: go test ./...
+
+  # -------------------------------------------------------------------------
+  # E2E jobs — all run in parallel once build passes.
+  # -------------------------------------------------------------------------
+
+  e2e-lightning:
+    name: E2E — POC 1 (Lightning L402, port 8080)
+    runs-on: ubuntu-latest
+    needs: build
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start stack
+        run: make up
+      - name: Setup regtest
+        run: make setup
+      - name: Run e2e test
+        run: make e2e-test
+
+  e2e-onchain:
+    name: E2E — POC 3 (On-chain BTC, port 8092)
+    runs-on: ubuntu-latest
+    needs: build
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start stack
+        run: make up-onchain
+      - name: Setup wallets
+        run: make setup-onchain
+      - name: Run e2e test
+        run: make e2e-onchain-test
+
+  e2e-keycloak:
+    name: E2E — POC 2 (Lightning + Keycloak, port 8090)
+    runs-on: ubuntu-latest
+    needs: build
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start base stack
+        run: make up
+      - name: Setup regtest
+        run: make setup
+      - name: Add Keycloak
+        run: make up-keycloak
+      - name: Run e2e test
+        run: make e2e-keycloak-test
+
+  e2e-onchain-keycloak:
+    name: E2E — POC 4 (On-chain BTC + Keycloak, port 8093)
+    runs-on: ubuntu-latest
+    needs: build
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start stack
+        run: make up-onchain-keycloak
+      - name: Setup wallets
+        run: make setup-onchain-keycloak
+      - name: Run e2e test
+        run: make e2e-onchain-keycloak-test
