@@ -11,6 +11,15 @@ for cmd in curl jq docker; do
   command -v "$cmd" >/dev/null 2>&1 || fail "missing dependency: $cmd"
 done
 
+log "Waiting for proxy to be ready..."
+for i in $(seq 1 30); do
+  status=$(curl -s -o /dev/null -w '%{http_code}' "${PROXY_URL}${TEST_PATH}" 2>/dev/null || true)
+  [ "$status" = "402" ] && break
+  [ "$i" = "30" ] && fail "proxy did not become ready after 60s"
+  sleep 2
+done
+log "Proxy is ready"
+
 log "Step 1/3: GET ${PROXY_URL}${TEST_PATH} (expect 402)"
 resp=$(curl -sS -i "${PROXY_URL}${TEST_PATH}")
 status=$(printf '%s\n' "$resp" | head -n1 | awk '{print $2}')

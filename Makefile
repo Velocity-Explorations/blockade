@@ -1,7 +1,8 @@
 .PHONY: help up down setup logs build test e2e-test clean deps \
         up-keycloak down-keycloak setup-keycloak e2e-keycloak-test clean-keycloak \
         up-onchain down-onchain setup-onchain e2e-onchain-test clean-onchain \
-        up-onchain-keycloak down-onchain-keycloak setup-onchain-keycloak e2e-onchain-keycloak-test clean-onchain-keycloak
+        up-onchain-keycloak down-onchain-keycloak setup-onchain-keycloak e2e-onchain-keycloak-test clean-onchain-keycloak \
+        up-demo down-demo
 
 help:
 	@printf '\nUsage: make <target>\n'
@@ -33,6 +34,9 @@ help:
 	@printf '  %-30s %s\n' e2e-onchain-keycloak-test '3-phase: valid creds, wrong creds, anti-replay'
 	@printf '  %-30s %s\n' down-onchain-keycloak  'Stop on-chain+Keycloak profile services'
 	@printf '  %-30s %s\n' clean-onchain-keycloak 'Stop on-chain+Keycloak profile services + delete volumes'
+	@printf '\n\033[1mBrowser demo (works with any running POC)\033[0m\n'
+	@printf '  %-30s %s\n' up-demo        'Start nginx serving the interactive demo UI at http://localhost:8084'
+	@printf '  %-30s %s\n' down-demo      'Stop the demo service'
 	@printf '\n'
 
 ## Start all Docker Compose services
@@ -149,3 +153,15 @@ down-onchain-keycloak:
 
 clean-onchain-keycloak:
 	docker compose --profile onchain-keycloak down -v
+
+## --- Browser demo (examples/browser-demo/) --------------------------------
+
+## Start nginx on port 8084 serving the interactive browser demo.
+## Works alongside any running POC — toggle between Lightning (:8080)
+## and on-chain (:8092) directly in the browser.
+up-demo:
+	docker compose --profile demo up -d demo
+
+## Stop the demo nginx container.
+down-demo:
+	docker compose --profile demo down

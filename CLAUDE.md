@@ -136,6 +136,15 @@ Services with no profile are started by `make up`. Profile-gated services are st
 | `keycloak-paywall` | `keycloak` | 8090 | POC 2: Lightning + Keycloak |
 | `onchain-paywall` | `onchain` | 8092 | POC 3: on-chain + httpbin |
 | `onchain-keycloak-paywall` | `onchain-keycloak` | 8093 | POC 4: on-chain + Keycloak |
+| `demo` | `demo` | 8084 | nginx serving browser demo UI |
+
+## Browser demo (`examples/browser-demo/`)
+
+A single self-contained HTML page (no build step) that walks through the paywall flow interactively. Start it with `make up-demo` after starting any POC. The page toggles between Lightning (:8080) and on-chain (:8092) backends.
+
+The proxy adds CORS headers on every response (`Access-Control-Allow-Origin: *`, `Access-Control-Expose-Headers: WWW-Authenticate`) so the browser can read 402 challenges from a different origin. OPTIONS preflight requests are handled in `proxy.ServeHTTP` before route matching.
+
+WebLN (Alby browser extension) is detected at page load; if present, a "Pay with Alby" button is shown for the Lightning flow.
 
 ## Regtest setup scripts
 

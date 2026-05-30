@@ -70,6 +70,17 @@ func New(routes []config.RouteConfig, verifier payment.PaymentVerifier, rl *conf
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// CORS — required for the browser demo, which fetches from a different port.
+	// WWW-Authenticate must be in Expose-Headers so JS can read 402 challenges.
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+	w.Header().Set("Access-Control-Expose-Headers", "WWW-Authenticate")
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
 	rt, ok := h.matchRoute(r.URL.Path)
 	if !ok {
 		http.NotFound(w, r)

@@ -309,6 +309,37 @@ make clean-onchain-keycloak   # stop + delete volumes
 
 ---
 
+## Browser Demo
+
+An interactive demo UI that walks through the paywall flow step-by-step in a browser. Works with any running POC — toggle between Lightning (POC 1) and on-chain (POC 3) in the UI.
+
+```bash
+# Start a POC first (e.g. Lightning):
+make up && make setup
+
+# Then start the demo:
+make up-demo
+
+# Open in your browser:
+open http://localhost:8084
+```
+
+The demo page shows:
+1. **Step 1** — makes a live `fetch()` to the proxy, displays the raw `402` response and `WWW-Authenticate` header
+2. **Step 2** — shows the invoice or Bitcoin address, a copy-pasteable payment command, and a [Pay with Alby] button if the [WebLN](https://www.webln.dev/) browser extension is installed
+3. **Step 3** — retries with the payment token, displays the `200 OK` upstream response
+4. **Step 4** — replays the same token to demonstrate single-use enforcement (`401 Unauthorized`)
+
+The demo is a single self-contained HTML file (`examples/browser-demo/index.html`) — no build step, no Node.js, no framework.
+
+### Tear down
+
+```bash
+make down-demo
+```
+
+---
+
 ## Configuration
 
 `config.yaml` controls the proxy. The Docker Compose setup mounts it read-only inside the container. Exactly one backend section (`lnd` or `bitcoind`) must be present.
@@ -431,3 +462,10 @@ Run `docker volume inspect btc-paywall_lnd-server-data` to find where Docker sto
 | `make e2e-onchain-keycloak-test` | Three-phase e2e: valid creds, wrong creds, anti-replay |
 | `make down-onchain-keycloak` | Stop on-chain+Keycloak profile services only |
 | `make clean-onchain-keycloak` | Stop on-chain+Keycloak profile services and delete their volumes |
+
+**Browser demo:**
+
+| Target | Description |
+|---|---|
+| `make up-demo` | Start nginx serving the browser demo at http://localhost:8084 |
+| `make down-demo` | Stop the demo service |
