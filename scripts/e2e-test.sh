@@ -27,8 +27,18 @@ invoice=$(printf '%s' "$www_auth"  | sed -n 's/.*invoice="\([^"]*\)".*/\1/p')
 log "got challenge (macaroon ${#macaroon}B, invoice ${invoice:0:25}...)"
 
 log "Step 2/3: paying invoice from lnd-client"
-pay_out=$(docker compose exec -T lnd-client \
-  lncli --network=regtest payinvoice --force --json "$invoice")
+# Retry up to 5 times — the channel may be active before the routing graph
+# has fully propagated, causing the first payment attempt to fail.
+pay_out=""
+for attempt in 1 2 3 4 5; do
+  if pay_out=$(docker compose exec -T lnd-client \
+      lncli --network=regtest payinvoice --force --json "$invoice" 2>&1); then
+    break
+  fi
+  [ "$attempt" = "5" ] && { printf '%s\n' "$pay_out" >&2; fail "payinvoice failed after 5 attempts"; }
+  log "  attempt $attempt failed, retrying in 5s..."
+  sleep 5
+done
 preimage=$(printf '%s\n' "$pay_out" | jq -rs 'last | .payment_preimage // empty')
 [ -n "$preimage" ] || { printf '%s\n' "$pay_out" >&2; fail "no payment_preimage in payinvoice output"; }
 log "payment settled (preimage ${preimage:0:16}...)"
