@@ -41,7 +41,7 @@ func main() {
 		verifier = onchain.NewVerifier(btcClient)
 	}
 
-	handler, err := proxy.New(cfg.Routes, verifier)
+	handler, err := proxy.New(cfg.Routes, verifier, cfg.RateLimit)
 	if err != nil {
 		log.Fatalf("create proxy: %v", err)
 	}

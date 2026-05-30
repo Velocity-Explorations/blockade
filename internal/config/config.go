@@ -8,10 +8,18 @@ import (
 )
 
 type Config struct {
-	ListenAddr string          `yaml:"listen_addr"`
-	Lnd        *LndConfig      `yaml:"lnd"`
-	Bitcoind   *BitcoindConfig `yaml:"bitcoind"`
-	Routes     []RouteConfig   `yaml:"routes"`
+	ListenAddr string           `yaml:"listen_addr"`
+	Lnd        *LndConfig       `yaml:"lnd"`
+	Bitcoind   *BitcoindConfig  `yaml:"bitcoind"`
+	RateLimit  *RateLimitConfig `yaml:"rate_limit"`
+	Routes     []RouteConfig    `yaml:"routes"`
+}
+
+// RateLimitConfig controls per-IP token-bucket rate limiting on unauthenticated
+// (challenge) requests. Omitting this section disables rate limiting entirely.
+type RateLimitConfig struct {
+	RequestsPerSecond float64 `yaml:"requests_per_second"`
+	Burst             int     `yaml:"burst"`
 }
 
 type LndConfig struct {
@@ -77,6 +85,14 @@ func validate(cfg *Config) error {
 		}
 		if cfg.Bitcoind.RPCPass == "" {
 			return fmt.Errorf("bitcoind.rpc_password is required")
+		}
+	}
+	if cfg.RateLimit != nil {
+		if cfg.RateLimit.RequestsPerSecond <= 0 {
+			return fmt.Errorf("rate_limit.requests_per_second must be > 0")
+		}
+		if cfg.RateLimit.Burst <= 0 {
+			return fmt.Errorf("rate_limit.burst must be > 0")
 		}
 	}
 	if len(cfg.Routes) == 0 {

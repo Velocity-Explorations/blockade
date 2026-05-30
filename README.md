@@ -351,6 +351,15 @@ routes:
 
 Each route maps a path prefix to an upstream and a per-request price in satoshis. Unmatched paths return `404 Not Found`.
 
+**Rate limiting (optional, any backend):**
+```yaml
+rate_limit:
+  requests_per_second: 5   # sustained token-bucket refill rate per source IP
+  burst: 10                # maximum burst above the sustained rate
+```
+
+Rate limiting applies only to unauthenticated requests — the ones that generate a 402 challenge. Authenticated requests (those carrying a valid payment token) are never rate-limited. Omit the `rate_limit` section entirely to disable it. Excess requests receive `429 Too Many Requests`.
+
 ## Local Development (without Docker)
 
 ```bash

@@ -1,5 +1,13 @@
 listen_addr: ":8080"
 
+# Optional: rate-limit unauthenticated (challenge) requests per source IP.
+# Uses a token bucket: sustained rate of requests_per_second with short
+# bursts up to burst. Omit this section to disable rate limiting.
+#
+# rate_limit:
+#   requests_per_second: 5
+#   burst: 10
+
 lnd:
   host: "lnd-server:10009"
   tls_cert_path: "/lnd/tls.cert"
