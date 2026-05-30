@@ -81,6 +81,7 @@ curl -H "Authorization: BTC-Onchain bcrt1q..." http://localhost:8092/get
 
 ## Security notes (POC limitations)
 
-- **0-conf**: payments are accepted from the mempool before block confirmation. A double-spend is technically possible but economically irrational for small amounts.
-- **In-memory state**: the `pending` map (address → required sats) and `used` set live only in process memory. A restart clears them — addresses issued before a restart cannot be spent after it.
-- **No on-chain sweep**: received sats accumulate in bitcoind's `paywall` wallet. In production, use Loop or periodic wallet sweeps to move funds to cold storage.
+- **0-conf**: payments are accepted from the mempool before block confirmation. A double-spend is technically possible but economically irrational for small amounts. Set `min_confirmations: 1` (or higher) in config to require confirmed transactions.
+- **Address expiry**: issued addresses expire after 1 hour (`pendingTTL` in `verifier.go`). A background goroutine evicts expired unpaid addresses every 5 minutes, preventing unbounded memory growth. The `expires_in` field in the `WWW-Authenticate` header tells the client how long they have.
+- **In-memory state**: the `pending` map and `used` set live only in process memory. A restart clears them — addresses issued before a restart cannot be spent after it.
+- **No on-chain sweep**: received sats accumulate in bitcoind's `paywall` wallet. In production, use periodic wallet sweeps to move funds to cold storage.

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/TheFutonEng/btc-paywall/internal/payment"
 )
@@ -13,35 +14,69 @@ import (
 const (
 	authScheme    = "BTC-Onchain "
 	wwwAuthHeader = "WWW-Authenticate"
+
+	// pendingTTL is how long an issued address remains valid for payment.
+	// Addresses not paid within this window are evicted from the pending map.
+	pendingTTL = time.Hour
+
+	// cleanupInterval controls how often the background goroutine sweeps for
+	// expired pending entries.
+	cleanupInterval = 5 * time.Minute
 )
+
+type pendingEntry struct {
+	sats      int64
+	expiresAt time.Time
+}
 
 // Verifier implements payment.PaymentVerifier using on-chain Bitcoin payments.
 // Each request requires a fresh on-chain payment to a newly generated address.
 // minConf controls how many block confirmations are required (0 = mempool).
+// Issued addresses expire after pendingTTL if no payment is received.
 type Verifier struct {
 	btc     *Client
 	minConf int
 
 	mu      sync.Mutex
-	pending map[string]int64 // address → required sats (issued but not yet spent)
-	used    map[string]bool  // spent addresses (anti-replay)
+	pending map[string]pendingEntry // address → entry (issued but not yet spent)
+	used    map[string]bool         // spent addresses (anti-replay)
 }
 
 // NewVerifier creates a Verifier backed by the given bitcoind Client.
 // minConf is the minimum number of block confirmations required before a payment
 // is accepted; pass 0 to accept unconfirmed mempool transactions.
+// A background goroutine evicts unpaid addresses after pendingTTL.
 func NewVerifier(btc *Client, minConf int) *Verifier {
-	return &Verifier{
+	v := &Verifier{
 		btc:     btc,
 		minConf: minConf,
-		pending: make(map[string]int64),
+		pending: make(map[string]pendingEntry),
 		used:    make(map[string]bool),
+	}
+	go v.cleanupLoop()
+	return v
+}
+
+// cleanupLoop periodically evicts expired entries from the pending map.
+// It runs for the lifetime of the process — no shutdown signal is needed for a POC.
+func (v *Verifier) cleanupLoop() {
+	ticker := time.NewTicker(cleanupInterval)
+	defer ticker.Stop()
+	for range ticker.C {
+		now := time.Now()
+		v.mu.Lock()
+		for addr, entry := range v.pending {
+			if now.After(entry.expiresAt) {
+				delete(v.pending, addr)
+			}
+		}
+		v.mu.Unlock()
 	}
 }
 
 // IssueChallenge generates a fresh Bitcoin address and returns a 402 response.
-// The WWW-Authenticate header carries the address and required amount so the
-// client knows where to send the payment.
+// The WWW-Authenticate header carries the address, required amount, and expiry
+// so the client knows where to send the payment and for how long the address is valid.
 func (v *Verifier) IssueChallenge(w http.ResponseWriter, r *http.Request) error {
 	priceSats, ok := payment.PriceFromContext(r.Context())
 	if !ok || priceSats <= 0 {
@@ -53,18 +88,22 @@ func (v *Verifier) IssueChallenge(w http.ResponseWriter, r *http.Request) error 
 		return fmt.Errorf("generate address: %w", err)
 	}
 
+	expiresAt := time.Now().Add(pendingTTL)
+
 	v.mu.Lock()
-	v.pending[addr] = priceSats
+	v.pending[addr] = pendingEntry{sats: priceSats, expiresAt: expiresAt}
 	v.mu.Unlock()
 
-	w.Header().Set(wwwAuthHeader, fmt.Sprintf(`BTC-Onchain address="%s", amount_sats="%d"`, addr, priceSats))
+	w.Header().Set(wwwAuthHeader, fmt.Sprintf(
+		`BTC-Onchain address="%s", amount_sats="%d", expires_in="%d"`,
+		addr, priceSats, int(pendingTTL.Seconds()),
+	))
 	w.WriteHeader(http.StatusPaymentRequired)
 	return nil
 }
 
 // VerifyProof checks that the address in the token has received at least the
-// required number of satoshis (including mempool). The address is then marked
-// as used to prevent replay.
+// required number of satoshis. Expired and already-used addresses are rejected.
 func (v *Verifier) VerifyProof(token string) (bool, error) {
 	addr := strings.TrimSpace(token)
 	if addr == "" {
@@ -78,8 +117,13 @@ func (v *Verifier) VerifyProof(token string) (bool, error) {
 		return false, nil
 	}
 
-	required, ok := v.pending[addr]
+	entry, ok := v.pending[addr]
 	if !ok {
+		return false, nil
+	}
+
+	if time.Now().After(entry.expiresAt) {
+		delete(v.pending, addr)
 		return false, nil
 	}
 
@@ -87,7 +131,7 @@ func (v *Verifier) VerifyProof(token string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("check received: %w", err)
 	}
-	if received < required {
+	if received < entry.sats {
 		return false, nil
 	}
 
