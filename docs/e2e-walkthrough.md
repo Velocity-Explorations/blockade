@@ -58,7 +58,7 @@ It is worth being explicit about the boundaries.
 
 - **It is not a login in the session sense.** Each request is paid independently. There is no "I logged in once, now I have a session." Time-windowed tokens (pay-for-window-of-access rather than pay-per-request) are the natural next step and are flagged in the README's Configuration section.
 - **The macaroon root key is in-memory only.** A proxy restart invalidates all outstanding tokens. This is intentional for the POC — production would need a persistent keystore, and probably key rotation.
-- **There is no rate limiting on the issuance side.** An attacker could request a million 402 challenges (free) without paying any of them. Each challenge costs the proxy lnd resources to mint. A real deployment would need issuance throttling to prevent invoice-spam DoS.
+- **Rate limiting on the issuance side is optional and disabled by default.** The proxy supports per-IP token-bucket rate limiting on the 402-challenge path (see `rate_limit` in `config.yaml`), but it is not enabled in the base POC config. Without it, an attacker can request unlimited 402 challenges without paying any of them. A production deployment should enable issuance throttling.
 - **No metrics, no audit log, no persistent record of redeemed tokens.** The `used` map lives in process memory.
 - **The price is static per route.** Adaptive pricing (charge more under load, less for trusted clients) is unimplemented.
 
@@ -83,7 +83,7 @@ That is the minimum evidence required to claim the architecture works. Everythin
 | Lightning-specific verification | `internal/payment/lightning/verifier.go` (`VerifyProof`) |
 | L402 token encode/decode | `internal/payment/lightning/token.go` |
 | lnd gRPC wrapper | `internal/payment/lightning/client.go` |
-| Per-request price plumbing via `context.Context` | `internal/payment/lightning/verifier.go` (`WithPrice`, `priceSatsKey`) |
+| Per-request price plumbing via `context.Context` | `internal/payment/price.go` (`WithPrice`, `PriceFromContext`) |
 
 The most important architectural constraint, repeated from `CLAUDE.md`: `internal/proxy/proxy.go` only depends on the `payment.PaymentVerifier` interface. Replacing Lightning with proof-of-work, on-chain payments, or a hybrid scheme is a matter of writing a new `Verifier` implementation, not touching the proxy.
 

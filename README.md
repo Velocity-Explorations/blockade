@@ -11,7 +11,7 @@ Three payment backends are implemented in this repository, each as a self-contai
 | 3 | On-chain Bitcoin | httpbin | `BTC-Onchain <address>` | 8092 |
 | 4 | On-chain Bitcoin | Keycloak OIDC | `BTC-Onchain <address>` | 8093 |
 
-All three run from the same compiled binary; the active backend is selected by config.
+All four run from the same compiled binary; the active backend is selected by config.
 
 ## Why
 
@@ -77,7 +77,7 @@ btc-paywall/
 │   └── onchain-keycloak-poc-plan.md    # Design rationale for POC 4
 │
 ├── config.yaml                         # POC 1 config (pre-wired for Docker Compose)
-├── docker-compose.yml                  # Full local stack (all three POCs)
+├── docker-compose.yml                  # Full local stack (all four POCs)
 ├── Dockerfile                          # Multi-stage Go build → alpine runtime
 └── Makefile                            # Developer workflow targets
 ```
