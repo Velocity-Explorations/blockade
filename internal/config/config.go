@@ -29,9 +29,10 @@ type LndConfig struct {
 }
 
 type BitcoindConfig struct {
-	Host    string `yaml:"host"`
-	RPCUser string `yaml:"rpc_user"`
-	RPCPass string `yaml:"rpc_password"`
+	Host             string `yaml:"host"`
+	RPCUser          string `yaml:"rpc_user"`
+	RPCPass          string `yaml:"rpc_password"`
+	MinConfirmations int    `yaml:"min_confirmations"`
 }
 
 type RouteConfig struct {
@@ -85,6 +86,9 @@ func validate(cfg *Config) error {
 		}
 		if cfg.Bitcoind.RPCPass == "" {
 			return fmt.Errorf("bitcoind.rpc_password is required")
+		}
+		if cfg.Bitcoind.MinConfirmations < 0 {
+			return fmt.Errorf("bitcoind.min_confirmations must be >= 0")
 		}
 	}
 	if cfg.RateLimit != nil {

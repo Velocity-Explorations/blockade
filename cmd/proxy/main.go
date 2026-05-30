@@ -40,7 +40,7 @@ func main() {
 
 	case cfg.Bitcoind != nil:
 		btcClient := onchain.NewClient(cfg.Bitcoind.Host, cfg.Bitcoind.RPCUser, cfg.Bitcoind.RPCPass)
-		verifier = onchain.NewVerifier(btcClient)
+		verifier = onchain.NewVerifier(btcClient, cfg.Bitcoind.MinConfirmations)
 	}
 
 	handler, err := proxy.New(cfg.Routes, verifier, cfg.RateLimit)
