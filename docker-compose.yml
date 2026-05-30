@@ -186,6 +186,21 @@ services:
     networks:
       - paywall
 
+  # ----------------------------------------------------------------------
+  # Browser demo: nginx serving the interactive paywall demo UI.
+  # Gated by `profiles: [demo]`; use `make up-demo` to start.
+  # Works with any running POC — toggle between Lightning and on-chain
+  # in the browser. Requires CORS headers on the proxy (already enabled).
+  # ----------------------------------------------------------------------
+
+  demo:
+    image: nginx:alpine
+    profiles: [demo]
+    volumes:
+      - ./examples/browser-demo/index.html:/usr/share/nginx/html/index.html:ro
+    ports:
+      - "8084:80"
+
 volumes:
   bitcoind-data:
   lnd-server-data:

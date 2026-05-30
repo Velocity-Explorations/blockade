@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>btc-paywall demo</title>
+  <style>
+    :root {
+      --bg:        #0f0f0f;
+      --surface:   #1a1a1a;
+      --border:    #2a2a2a;
+      --orange:    #f7931a;
+      --orange-dim:#a05c0e;
+      --green:     #22c55e;
+      --red:       #ef4444;
+      --yellow:    #eab308;
+      --text:      #e5e5e5;
+      --muted:     #737373;
+      --code-bg:   #111;
+      --code-text: #a3e635;
+      --radius:    8px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* ── Layout ── */
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 24px 32px;
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      flex-wrap: wrap;
+    }
+    .header-title h1 { font-size: 22px; font-weight: 700; }
+    .header-title h1 span { color: var(--orange); }
+    .header-title p { color: var(--muted); font-size: 13px; margin-top: 2px; }
+    main { max-width: 780px; margin: 0 auto; padding: 32px 24px; display: flex; flex-direction: column; gap: 20px; }
+
+    /* ── Mode toggle ── */
+    .mode-toggle { display: flex; gap: 8px; }
+    .toggle-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 8px 18px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all .15s;
+    }
+    .toggle-btn:hover { border-color: var(--orange-dim); color: var(--text); }
+    .toggle-btn.active { background: var(--orange); border-color: var(--orange); color: #000; font-weight: 700; }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      transition: border-color .2s;
+    }
+    .card.active { border-color: var(--orange); }
+    .card.done { opacity: .6; }
+    .step-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--orange);
+      margin-bottom: 6px;
+    }
+    .card h2 { font-size: 18px; font-weight: 600; margin-bottom: 16px; }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 20px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all .15s;
+    }
+    .btn-primary { background: var(--orange); color: #000; }
+    .btn-primary:hover { background: #e8841a; }
+    .btn-primary:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+    .btn-secondary { background: var(--border); color: var(--text); }
+    .btn-secondary:hover { background: #333; }
+    .btn-webln { background: #7c3aed; color: #fff; }
+    .btn-webln:hover { background: #6d28d9; }
+    .btn-copy {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .btn-copy:hover { border-color: var(--orange-dim); color: var(--text); }
+    .btn-copy.copied { border-color: var(--green); color: var(--green); }
+
+    /* ── Status badges ── */
+    .status {
+      display: inline-block;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 4px;
+      margin-bottom: 12px;
+      letter-spacing: .04em;
+    }
+    .status-402 { background: rgba(247,147,26,.15); color: var(--orange); }
+    .status-200 { background: rgba(34,197,94,.15); color: var(--green); }
+    .status-401 { background: rgba(239,68,68,.15); color: var(--red); }
+
+    /* ── Code blocks ── */
+    .code-block {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px 14px;
+      font-family: 'Menlo', 'Monaco', 'Consolas', monospace;
+      font-size: 13px;
+      color: var(--code-text);
+      word-break: break-all;
+      white-space: pre-wrap;
+      margin: 8px 0;
+      position: relative;
+    }
+    .code-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .code-row .code-block { flex: 1; margin: 0; }
+
+    /* ── Form inputs ── */
+    .field { margin-top: 16px; }
+    .field label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; font-weight: 500; }
+    .field input[type="text"] {
+      width: 100%;
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-family: monospace;
+      font-size: 13px;
+      color: var(--text);
+      outline: none;
+      transition: border-color .15s;
+    }
+    .field input[type="text"]:focus { border-color: var(--orange); }
+    .field input[type="text"]::placeholder { color: var(--muted); }
+
+    /* ── Divider ── */
+    .divider { display: flex; align-items: center; gap: 12px; margin: 16px 0; color: var(--muted); font-size: 12px; }
+    .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+    /* ── Response display ── */
+    .response-body {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px 14px;
+      font-family: monospace;
+      font-size: 12px;
+      color: var(--code-text);
+      max-height: 220px;
+      overflow-y: auto;
+      white-space: pre;
+      margin-top: 8px;
+    }
+
+    /* ── Alert / info ── */
+    .alert {
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      margin-top: 12px;
+    }
+    .alert-warn { background: rgba(234,179,8,.1); border: 1px solid rgba(234,179,8,.3); color: var(--yellow); }
+    .alert-error { background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.3); color: var(--red); }
+    .alert-info { background: rgba(247,147,26,.08); border: 1px solid rgba(247,147,26,.2); color: var(--muted); }
+
+    /* ── Auth header preview ── */
+    .auth-preview { margin: 12px 0; }
+    .auth-preview .label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+
+    /* ── Explanation text ── */
+    .explanation { font-size: 13px; color: var(--muted); margin-top: 10px; }
+    .explanation strong { color: var(--text); }
+
+    /* ── Utility ── */
+    .hidden { display: none !important; }
+    .mt { margin-top: 16px; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 16px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-title">
+    <h1><span>btc</span>-paywall</h1>
+    <p>Every HTTP request costs sats. Watch the protocol in action.</p>
+  </div>
+  <div class="mode-toggle">
+    <button class="toggle-btn active" id="btn-lightning" onclick="setMode('lightning')">⚡ Lightning — POC 1 · :8080</button>
+    <button class="toggle-btn" id="btn-onchain" onclick="setMode('onchain')">₿ On-chain — POC 3 · :8092</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- ── Step 1: Make Request ── -->
+  <div class="card active" id="card-1">
+    <div class="step-label">Step 1</div>
+    <h2>Make a request</h2>
+    <p class="explanation">An unauthenticated request to a gated endpoint returns <strong>402 Payment Required</strong> with a payment challenge.</p>
+    <div class="field">
+      <label>Endpoint</label>
+      <div class="code-block" id="endpoint-display">GET http://localhost:8080/get</div>
+    </div>
+    <div class="row">
+      <button class="btn btn-primary" id="btn-request" onclick="makeRequest()">Make Request →</button>
+    </div>
+    <div id="response-1" class="hidden">
+      <div style="margin-top:16px">
+        <span class="status status-402">402 Payment Required</span>
+        <div class="field">
+          <label>WWW-Authenticate header</label>
+          <div class="code-block" id="www-auth-raw"></div>
+        </div>
+        <p class="explanation">The proxy minted a payment challenge tied to this specific request. No token, no access.</p>
+      </div>
+    </div>
+    <div id="error-1" class="alert alert-error hidden"></div>
+  </div>
+
+  <!-- ── Step 2 Lightning ── -->
+  <div class="card hidden" id="card-2-lightning">
+    <div class="step-label">Step 2</div>
+    <h2>Pay the Lightning invoice</h2>
+    <p class="explanation">Pay the BOLT11 invoice. The preimage released by your node is cryptographic proof of payment.</p>
+
+    <div class="field">
+      <label>BOLT11 invoice</label>
+      <div class="code-row">
+        <div class="code-block" id="invoice-display" style="word-break:break-all"></div>
+        <button class="btn-copy" onclick="copyText('invoice-display', this)">📋 Copy</button>
+      </div>
+    </div>
+
+    <div id="webln-section" class="hidden">
+      <div class="divider">or pay automatically</div>
+      <button class="btn btn-webln" onclick="payWithWebLN()">⚡ Pay with Alby</button>
+    </div>
+
+    <div class="divider" id="manual-divider">pay manually</div>
+
+    <div class="field">
+      <label>Run this in your terminal</label>
+      <div class="code-row">
+        <div class="code-block" id="pay-cmd-lightning"></div>
+        <button class="btn-copy" onclick="copyText('pay-cmd-lightning', this)">📋 Copy</button>
+      </div>
+    </div>
+
+    <div class="field" id="preimage-field">
+      <label>Paste the <code style="color:var(--orange)">payment_preimage</code> from the lncli output</label>
+      <input type="text" id="preimage-input" placeholder="hex preimage (64 chars)">
+    </div>
+
+    <div class="row">
+      <button class="btn btn-primary" onclick="retryLightning()">Retry with Token →</button>
+    </div>
+    <div id="error-2-lightning" class="alert alert-error hidden"></div>
+  </div>
+
+  <!-- ── Step 2 On-chain ── -->
+  <div class="card hidden" id="card-2-onchain">
+    <div class="step-label">Step 2</div>
+    <h2>Send on-chain Bitcoin</h2>
+    <p class="explanation">Send exactly the required amount to the address. The proxy checks the mempool — no block confirmation needed (0-conf).</p>
+
+    <div class="alert alert-info" style="margin-top:12px">
+      <strong>Prerequisites:</strong> run these once before using this mode:
+      <div class="code-block" style="margin-top:8px;color:#94a3b8">make up-onchain &amp;&amp; make setup-onchain</div>
+      <code>setup-onchain</code> creates the <code>tester</code> wallet with funded regtest coins used by the payment command below.
+    </div>
+
+    <div class="field">
+      <label>Pay to address</label>
+      <div class="code-row">
+        <div class="code-block" id="address-display"></div>
+        <button class="btn-copy" onclick="copyText('address-display', this)">📋 Copy</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Required amount</label>
+      <div class="code-block" id="amount-display"></div>
+    </div>
+    <div class="field">
+      <label>Run this in your terminal to pay from the funded <code style="color:var(--orange)">tester</code> wallet</label>
+      <div class="code-row">
+        <div class="code-block" id="pay-cmd-onchain"></div>
+        <button class="btn-copy" onclick="copyText('pay-cmd-onchain', this)">📋 Copy</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <button class="btn btn-primary" onclick="checkOnchain()">Check Payment →</button>
+    </div>
+    <p class="explanation" style="margin-top:10px">
+      After running the command, click <strong>Check Payment</strong>. The proxy verifies the mempool and grants access — no preimage needed for on-chain payments.
+    </p>
+    <div id="pending-alert" class="alert alert-warn hidden">
+      Payment not seen yet. Run the command above, then click again.
+    </div>
+    <div id="error-2-onchain" class="alert alert-error hidden"></div>
+  </div>
+
+  <!-- ── Step 3: Access Granted ── -->
+  <div class="card hidden" id="card-3">
+    <div class="step-label">Step 3</div>
+    <h2>Access granted</h2>
+    <span class="status status-200">200 OK</span>
+    <div class="auth-preview">
+      <div class="label">Sent with</div>
+      <div class="code-block" id="auth-sent" style="color:#94a3b8"></div>
+    </div>
+    <div class="field">
+      <label>Upstream response body</label>
+      <div class="response-body" id="response-body"></div>
+    </div>
+    <p class="explanation" style="margin-top:12px">The token was consumed. Try replaying it — the proxy rejects single-use tokens.</p>
+    <div class="row">
+      <button class="btn btn-secondary" onclick="tryReplay()">Try Replay →</button>
+    </div>
+  </div>
+
+  <!-- ── Step 4: Anti-replay ── -->
+  <div class="card hidden" id="card-4">
+    <div class="step-label">Step 4</div>
+    <h2>Replay rejected</h2>
+    <span class="status status-401">401 Unauthorized</span>
+    <div class="code-block" id="replay-body" style="margin-top:8px"></div>
+    <p class="explanation" style="margin-top:12px">
+      <strong>Same token, same address — rejected.</strong> Tokens are single-use. An attacker who intercepts a spent token gains nothing.
+    </p>
+    <div class="row">
+      <button class="btn btn-secondary" onclick="reset()">← Start over</button>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+const S = {
+  mode:      'lightning',
+  macaroon:  '',
+  invoice:   '',
+  address:   '',
+  amountSats: 0,
+  preimage:  '',
+};
+
+const BASE = { lightning: 'http://localhost:8080', onchain: 'http://localhost:8092' };
+const PATH = '/get';
+
+// ── Mode toggle ────────────────────────────────────────────────────────────
+function setMode(mode) {
+  S.mode = mode;
+  document.getElementById('btn-lightning').classList.toggle('active', mode === 'lightning');
+  document.getElementById('btn-onchain').classList.toggle('active', mode === 'onchain');
+  const url = `${BASE[mode]}${PATH}`;
+  document.getElementById('endpoint-display').textContent = `GET ${url}`;
+  reset();
+}
+
+// ── Step 1: Make Request ───────────────────────────────────────────────────
+async function makeRequest() {
+  const btn = document.getElementById('btn-request');
+  btn.disabled = true;
+  btn.textContent = 'Requesting…';
+  hide('error-1');
+  hide('response-1');
+
+  try {
+    const resp = await fetch(`${BASE[S.mode]}${PATH}`);
+    if (resp.status !== 402) {
+      showError('error-1', `Expected 402, got ${resp.status}. Is the proxy running?`);
+      return;
+    }
+    const wwwAuth = resp.headers.get('WWW-Authenticate') || '';
+    document.getElementById('www-auth-raw').textContent = wwwAuth;
+    show('response-1');
+    setCardState('card-1', 'done');
+
+    if (S.mode === 'lightning') {
+      const { macaroon, invoice } = parseLightningChallenge(wwwAuth);
+      if (!macaroon || !invoice) { showError('error-1', 'Could not parse L402 challenge.'); return; }
+      S.macaroon = macaroon; S.invoice = invoice;
+      setupLightningStep();
+    } else {
+      const { address, amountSats } = parseOnchainChallenge(wwwAuth);
+      if (!address || !amountSats) { showError('error-1', 'Could not parse BTC-Onchain challenge.'); return; }
+      S.address = address; S.amountSats = amountSats;
+      setupOnchainStep();
+    }
+  } catch (e) {
+    showError('error-1',
+      `Could not reach ${BASE[S.mode]}. Make sure the proxy is running:\n` +
+      (S.mode === 'lightning' ? 'make up && make setup' : 'make up-onchain && make setup-onchain'));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Make Request →';
+  }
+}
+
+// ── Step 2 Lightning ───────────────────────────────────────────────────────
+function setupLightningStep() {
+  document.getElementById('invoice-display').textContent = S.invoice;
+  document.getElementById('pay-cmd-lightning').textContent =
+    `docker compose exec lnd-client lncli --network=regtest payinvoice --force ${S.invoice}`;
+
+  if (typeof window.webln !== 'undefined') {
+    show('webln-section');
+    document.getElementById('manual-divider').textContent = 'or pay manually';
+  }
+
+  show('card-2-lightning');
+  setCardState('card-2-lightning', 'active');
+}
+
+async function payWithWebLN() {
+  hide('error-2-lightning');
+  try {
+    await window.webln.enable();
+    const result = await window.webln.sendPayment(S.invoice);
+    S.preimage = result.preimage;
+    document.getElementById('preimage-input').value = S.preimage;
+    await retryLightning();
+  } catch (e) {
+    showError('error-2-lightning', `WebLN error: ${e.message}`);
+  }
+}
+
+async function retryLightning() {
+  hide('error-2-lightning');
+  const preimage = S.preimage || document.getElementById('preimage-input').value.trim();
+  if (!preimage) { showError('error-2-lightning', 'Paste the payment_preimage from the lncli output.'); return; }
+  S.preimage = preimage;
+
+  const token = `L402 ${S.macaroon}:${preimage}`;
+  await sendWithToken(token, 'error-2-lightning');
+}
+
+// ── Step 2 On-chain ────────────────────────────────────────────────────────
+function setupOnchainStep() {
+  const btc = (S.amountSats / 1e8).toFixed(8);
+  document.getElementById('address-display').textContent = S.address;
+  document.getElementById('amount-display').textContent =
+    `${S.amountSats.toLocaleString()} sats  (${btc} BTC)`;
+  document.getElementById('pay-cmd-onchain').textContent =
+    `docker compose exec bitcoind bitcoin-cli -regtest ` +
+    `-rpcuser=bitcoin -rpcpassword=bitcoin ` +
+    `-rpcwallet=tester sendtoaddress ${S.address} ${btc}`;
+
+  show('card-2-onchain');
+  setCardState('card-2-onchain', 'active');
+}
+
+async function checkOnchain() {
+  hide('error-2-onchain');
+  hide('pending-alert');
+
+  const token = `BTC-Onchain ${S.address}`;
+  const resp = await safeFetch(`${BASE.onchain}${PATH}`, token, 'error-2-onchain');
+  if (!resp) return;
+
+  if (resp.status === 401) {
+    show('pending-alert');
+    return;
+  }
+  if (resp.ok) {
+    const body = await resp.json();
+    showStep3(`BTC-Onchain ${S.address}`, body);
+  } else {
+    showError('error-2-onchain', `Unexpected status ${resp.status}`);
+  }
+}
+
+// ── Shared retry logic ─────────────────────────────────────────────────────
+async function sendWithToken(token, errorId) {
+  const resp = await safeFetch(`${BASE[S.mode]}${PATH}`, token, errorId);
+  if (!resp) return;
+  if (resp.ok) {
+    const body = await resp.json();
+    showStep3(token, body);
+  } else {
+    const text = await resp.text();
+    showError(errorId, `Got ${resp.status}: ${text.trim()}`);
+  }
+}
+
+async function safeFetch(url, authToken, errorId) {
+  try {
+    return await fetch(url, { headers: { Authorization: authToken } });
+  } catch (e) {
+    showError(errorId, `Could not reach ${url}: ${e.message}`);
+    return null;
+  }
+}
+
+// ── Step 3: Access Granted ─────────────────────────────────────────────────
+function showStep3(token, body) {
+  if (S.mode === 'lightning') {
+    setCardState('card-2-lightning', 'done');
+  } else {
+    setCardState('card-2-onchain', 'done');
+  }
+  document.getElementById('auth-sent').textContent = `Authorization: ${token}`;
+  document.getElementById('response-body').textContent = JSON.stringify(body, null, 2);
+  show('card-3');
+  setCardState('card-3', 'active');
+}
+
+// ── Step 4: Anti-replay ────────────────────────────────────────────────────
+async function tryReplay() {
+  const token = S.mode === 'lightning'
+    ? `L402 ${S.macaroon}:${S.preimage}`
+    : `BTC-Onchain ${S.address}`;
+
+  let resp;
+  try {
+    resp = await fetch(`${BASE[S.mode]}${PATH}`, { headers: { Authorization: token } });
+  } catch (e) {
+    return;
+  }
+  const text = await resp.text();
+  document.getElementById('replay-body').textContent = text.trim();
+  setCardState('card-3', 'done');
+  show('card-4');
+  setCardState('card-4', 'active');
+}
+
+// ── Reset ──────────────────────────────────────────────────────────────────
+function reset() {
+  Object.assign(S, { macaroon:'', invoice:'', address:'', amountSats:0, preimage:'' });
+  ['response-1','error-1','card-2-lightning','card-2-onchain','card-3','card-4',
+   'webln-section','pending-alert','error-2-lightning','error-2-onchain'].forEach(hide);
+  document.getElementById('preimage-input').value = '';
+  document.getElementById('btn-request').disabled = false;
+  setCardState('card-1', 'active');
+}
+
+// ── Parse challenges ───────────────────────────────────────────────────────
+function parseLightningChallenge(h) {
+  return {
+    macaroon: (h.match(/macaroon="([^"]+)"/) || [])[1],
+    invoice:  (h.match(/invoice="([^"]+)"/)  || [])[1],
+  };
+}
+function parseOnchainChallenge(h) {
+  return {
+    address:    (h.match(/address="([^"]+)"/)       || [])[1],
+    amountSats: parseInt((h.match(/amount_sats="(\d+)"/) || [])[1]) || 0,
+  };
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function show(id) { document.getElementById(id).classList.remove('hidden'); }
+function hide(id) { document.getElementById(id).classList.add('hidden'); }
+
+function setCardState(id, state) {
+  const el = document.getElementById(id);
+  el.classList.remove('active', 'done');
+  if (state) el.classList.add(state);
+}
+
+function showError(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+async function copyText(srcId, btn) {
+  const text = document.getElementById(srcId).textContent;
+  try {
+    await navigator.clipboard.writeText(text);
+    btn.textContent = '✓ Copied';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = '📋 Copy'; btn.classList.remove('copied'); }, 1800);
+  } catch (e) {
+    btn.textContent = 'Failed';
+  }
+}
+
+// Detect WebLN on load
+window.addEventListener('load', () => {
+  if (typeof window.webln !== 'undefined') {
+    show('webln-section');
+    document.getElementById('manual-divider').textContent = 'or pay manually';
+  }
+});
+</script>
+</body>
+</html>
