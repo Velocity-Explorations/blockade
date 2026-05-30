@@ -50,11 +50,20 @@ parse_challenge() {
 }
 
 # Helper: pay an invoice from lnd-client, return the preimage.
+# Retries up to 5 times — the channel may be active before the routing graph
+# has fully propagated, causing the first payment attempt to fail.
 pay_invoice() {
   local invoice="$1"
-  local out
-  out=$(docker compose exec -T lnd-client \
-    lncli --network=regtest payinvoice --force --json "$invoice")
+  local out attempt
+  for attempt in 1 2 3 4 5; do
+    if out=$(docker compose exec -T lnd-client \
+        lncli --network=regtest payinvoice --force --json "$invoice" 2>&1); then
+      break
+    fi
+    [ "$attempt" = "5" ] && { printf '%s\n' "$out" >&2; fail "payinvoice failed after 5 attempts"; }
+    log "  payment attempt $attempt failed, retrying in 5s..."
+    sleep 5
+  done
   local preimage
   preimage=$(printf '%s\n' "$out" | jq -rs 'last | .payment_preimage // empty')
   [ -n "$preimage" ] || { printf '%s\n' "$out" >&2; fail "no payment_preimage in payinvoice output"; }
