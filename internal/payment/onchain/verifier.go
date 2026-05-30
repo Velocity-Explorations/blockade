@@ -17,9 +17,10 @@ const (
 
 // Verifier implements payment.PaymentVerifier using on-chain Bitcoin payments.
 // Each request requires a fresh on-chain payment to a newly generated address.
-// Payments are detected in the mempool (0-conf); no block confirmation is required.
+// minConf controls how many block confirmations are required (0 = mempool).
 type Verifier struct {
-	btc *Client
+	btc     *Client
+	minConf int
 
 	mu      sync.Mutex
 	pending map[string]int64 // address → required sats (issued but not yet spent)
@@ -27,9 +28,12 @@ type Verifier struct {
 }
 
 // NewVerifier creates a Verifier backed by the given bitcoind Client.
-func NewVerifier(btc *Client) *Verifier {
+// minConf is the minimum number of block confirmations required before a payment
+// is accepted; pass 0 to accept unconfirmed mempool transactions.
+func NewVerifier(btc *Client, minConf int) *Verifier {
 	return &Verifier{
 		btc:     btc,
+		minConf: minConf,
 		pending: make(map[string]int64),
 		used:    make(map[string]bool),
 	}
@@ -79,7 +83,7 @@ func (v *Verifier) VerifyProof(token string) (bool, error) {
 		return false, nil
 	}
 
-	received, err := v.btc.GetReceivedSats(context.Background(), addr, 0)
+	received, err := v.btc.GetReceivedSats(context.Background(), addr, v.minConf)
 	if err != nil {
 		return false, fmt.Errorf("check received: %w", err)
 	}

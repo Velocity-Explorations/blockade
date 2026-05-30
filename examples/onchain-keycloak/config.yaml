@@ -4,6 +4,7 @@ bitcoind:
   host: "bitcoind:18443"
   rpc_user: "bitcoin"
   rpc_password: "bitcoin"
+  # min_confirmations: 0  # 0 = accept mempool (default); set to 1+ for confirmed-only
 
 routes:
   - path_prefix: "/realms/btc-paywall/protocol/openid-connect/token"
