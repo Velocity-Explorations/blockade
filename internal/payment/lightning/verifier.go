@@ -11,6 +11,8 @@ import (
 	"sync"
 
 	"gopkg.in/macaroon.v2"
+
+	"github.com/TheFutonEng/btc-paywall/internal/payment"
 )
 
 const (
@@ -46,7 +48,7 @@ func NewVerifier(lnd *Client) (*Verifier, error) {
 // the WWW-Authenticate: L402 header. The macaroon identifier is the payment
 // hash, binding the credential to this specific invoice.
 func (v *Verifier) IssueChallenge(w http.ResponseWriter, r *http.Request) error {
-	priceSats, ok := r.Context().Value(priceSatsKey{}).(int64)
+	priceSats, ok := payment.PriceFromContext(r.Context())
 	if !ok || priceSats <= 0 {
 		return fmt.Errorf("price not set in context")
 	}
@@ -129,10 +131,8 @@ func ExtractToken(authHeader string) (string, bool) {
 	return strings.TrimPrefix(authHeader, authScheme), true
 }
 
-// priceSatsKey is the context key used to pass the route price to IssueChallenge.
-type priceSatsKey struct{}
-
-// WithPrice returns a copy of ctx carrying the price for this request.
-func WithPrice(ctx context.Context, sats int64) context.Context {
-	return context.WithValue(ctx, priceSatsKey{}, sats)
+// ExtractToken implements payment.PaymentVerifier by delegating to the
+// package-level ExtractToken function.
+func (v *Verifier) ExtractToken(authHeader string) (string, bool) {
+	return ExtractToken(authHeader)
 }

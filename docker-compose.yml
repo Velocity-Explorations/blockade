@@ -144,6 +144,26 @@ services:
     networks:
       - paywall
 
+  # ----------------------------------------------------------------------
+  # Third POC: on-chain BTC paywall (see examples/onchain-btc/).
+  # Gated by `profiles: [onchain]`; use `make up-onchain` to start.
+  # Does NOT require lnd — the proxy talks directly to bitcoind via JSON-RPC.
+  # ----------------------------------------------------------------------
+
+  onchain-paywall:
+    build: .
+    profiles: [onchain]
+    command: ["-config", "/config/onchain.yaml"]
+    depends_on:
+      bitcoind:
+        condition: service_healthy
+    ports:
+      - "8092:8092"
+    volumes:
+      - ./examples/onchain-btc/config.yaml:/config/onchain.yaml:ro
+    networks:
+      - paywall
+
 volumes:
   bitcoind-data:
   lnd-server-data:

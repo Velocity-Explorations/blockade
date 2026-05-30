@@ -1,5 +1,6 @@
 .PHONY: up down setup logs build test e2e-test clean deps \
-        up-keycloak down-keycloak setup-keycloak e2e-keycloak-test
+        up-keycloak down-keycloak setup-keycloak e2e-keycloak-test \
+        up-onchain down-onchain setup-onchain e2e-onchain-test clean-onchain
 
 ## Start all Docker Compose services
 up:
@@ -65,3 +66,28 @@ down-keycloak:
 
 clean-keycloak:
 	docker compose --profile keycloak down -v
+
+## --- Third POC: on-chain BTC paywall (examples/onchain-btc/) -----------
+
+## Start only the services the on-chain POC needs: bitcoind, httpbin, and
+## the onchain-paywall proxy. Does NOT start lnd-server or lnd-client.
+up-onchain:
+	docker compose --profile onchain up -d --build bitcoind upstream onchain-paywall
+
+## Create the bitcoind "paywall" wallet used by the on-chain verifier.
+## Run once after `make up-onchain`. Safe to re-run.
+setup-onchain:
+	bash scripts/setup-onchain.sh
+
+## Run the end-to-end on-chain paywall flow:
+## 402 -> sendcoins from lnd-client -> present address token -> 200
+## Plus anti-replay and unpaid-address probes.
+e2e-onchain-test:
+	bash examples/onchain-btc/scripts/e2e-onchain.sh
+
+## Stop only the onchain-profile services.
+down-onchain:
+	docker compose --profile onchain down
+
+clean-onchain:
+	docker compose --profile onchain down -v
