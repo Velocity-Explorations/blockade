@@ -16,29 +16,45 @@ LND_CLIENT="docker compose exec -T lnd-client lncli --network=regtest"
 log() { echo "[setup] $*"; }
 
 # ---------------------------------------------------------------------------
+# wait_until <description> <attempts> <delay-secs> <log-service> <condition>
+# Polls <condition> (re-evaluated each iteration) until it succeeds, up to
+# <attempts> times with <delay-secs> between tries. On timeout it dumps the
+# recent logs from <log-service> and exits 1, so a stuck dependency fails
+# loudly instead of hanging forever. Pass "" for <log-service> to skip the
+# log dump.
+wait_until() {
+  local desc=$1 attempts=$2 delay=$3 svc=$4 cond=$5
+  local i=1
+  log "Waiting for ${desc}..."
+  until eval "$cond" >/dev/null 2>&1; do
+    if [ "$i" -ge "$attempts" ]; then
+      log "ERROR: timed out after ~$((attempts * delay))s waiting for ${desc}"
+      if [ -n "$svc" ]; then
+        log "---- recent logs from ${svc} ----"
+        docker compose logs --tail=50 "$svc" 2>&1 | sed 's/^/    /' || true
+      fi
+      exit 1
+    fi
+    i=$((i + 1))
+    sleep "$delay"
+  done
+  log "${desc} ready"
+}
+
 wait_for_lnd() {
   local svc=$1
-  local cmd="docker compose exec -T $svc lncli --network=regtest getinfo"
-  log "Waiting for $svc to be ready..."
-  until $cmd > /dev/null 2>&1; do
-    sleep 3
-  done
-  log "$svc is ready"
+  wait_until "$svc to be ready" 40 3 "$svc" \
+    "docker compose exec -T $svc lncli --network=regtest getinfo"
 }
 
 wait_for_chain_sync() {
   local svc=$1
-  log "Waiting for $svc to sync to chain tip..."
-  until [ "$(docker compose exec -T "$svc" lncli --network=regtest getinfo 2>/dev/null | jq -r '.synced_to_chain')" = "true" ]; do
-    sleep 2
-  done
-  log "$svc synced to chain tip"
+  wait_until "$svc to sync to chain tip" 60 2 "$svc" \
+    "[ \"\$(docker compose exec -T $svc lncli --network=regtest getinfo 2>/dev/null | jq -r .synced_to_chain)\" = true ]"
 }
 
 # ---------------------------------------------------------------------------
-log "Waiting for bitcoind..."
-until $BTC_CLI getblockchaininfo > /dev/null 2>&1; do sleep 3; done
-log "bitcoind is ready"
+wait_until "bitcoind" 20 3 bitcoind "$BTC_CLI getblockchaininfo"
 
 wait_for_lnd lnd-server
 wait_for_lnd lnd-client
@@ -51,13 +67,10 @@ log "lnd-server address: $SERVER_ADDR"
 log "Mining 101 blocks to lnd-server (coinbase maturity)..."
 $BTC_CLI generatetoaddress 101 "$SERVER_ADDR" > /dev/null
 
-log "Waiting for lnd-server to sync to chain tip..."
 wait_for_chain_sync lnd-server
 
-log "Waiting for lnd-server to see on-chain balance..."
-until [ "$($LND_SERVER walletbalance | jq -r '.confirmed_balance')" -gt "0" ] 2>/dev/null; do
-  sleep 2
-done
+wait_until "lnd-server on-chain balance" 30 2 lnd-server \
+  "[ \"\$($LND_SERVER walletbalance | jq -r .confirmed_balance)\" -gt 0 ]"
 
 # ---------------------------------------------------------------------------
 log "Getting lnd-client address..."
@@ -73,10 +86,8 @@ $BTC_CLI generatetoaddress 1 "$SERVER_ADDR" > /dev/null
 wait_for_chain_sync lnd-server
 wait_for_chain_sync lnd-client
 
-log "Waiting for lnd-client to see on-chain balance..."
-until [ "$($LND_CLIENT walletbalance | jq -r '.confirmed_balance')" -gt "0" ] 2>/dev/null; do
-  sleep 2
-done
+wait_until "lnd-client on-chain balance" 30 2 lnd-client \
+  "[ \"\$($LND_CLIENT walletbalance | jq -r .confirmed_balance)\" -gt 0 ]"
 
 # ---------------------------------------------------------------------------
 log "Connecting lnd-client → lnd-server..."
@@ -94,10 +105,8 @@ $LND_CLIENT openchannel \
 log "Mining 6 blocks to confirm channel..."
 $BTC_CLI generatetoaddress 6 "$SERVER_ADDR" > /dev/null
 
-log "Waiting for channel to be active..."
-until [ "$($LND_CLIENT listchannels | jq '[.channels[] | select(.active == true)] | length')" -gt "0" ] 2>/dev/null; do
-  sleep 3
-done
+wait_until "Lightning channel to become active" 40 3 lnd-client \
+  "[ \"\$($LND_CLIENT listchannels | jq '[.channels[] | select(.active == true)] | length')\" -gt 0 ]"
 
 # ---------------------------------------------------------------------------
 log ""
