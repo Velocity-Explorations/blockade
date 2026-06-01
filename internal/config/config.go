@@ -9,6 +9,7 @@ import (
 
 type Config struct {
 	ListenAddr string           `yaml:"listen_addr"`
+	DBPath     string           `yaml:"db_path"`
 	Lnd        *LndConfig       `yaml:"lnd"`
 	Bitcoind   *BitcoindConfig  `yaml:"bitcoind"`
 	RateLimit  *RateLimitConfig `yaml:"rate_limit"`

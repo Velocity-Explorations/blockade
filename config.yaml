@@ -1,5 +1,9 @@
 listen_addr: ":8080"
 
+# Optional: persist spent tokens to SQLite so anti-replay survives restarts.
+# Omit (or leave empty) to use an in-memory store (state lost on restart).
+# db_path: /data/paywall.db
+
 # Optional: rate-limit unauthenticated (challenge) requests per source IP.
 # Uses a token bucket: sustained rate of requests_per_second with short
 # bursts up to burst. Omit this section to disable rate limiting.

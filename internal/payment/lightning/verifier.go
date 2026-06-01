@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"sync"
 
 	"gopkg.in/macaroon.v2"
 
 	"github.com/TheFutonEng/btc-paywall/internal/payment"
+	"github.com/TheFutonEng/btc-paywall/internal/store"
 )
 
 const (
@@ -26,13 +26,13 @@ const (
 type Verifier struct {
 	lnd     *Client
 	rootKey []byte
-
-	mu   sync.Mutex
-	used map[string]struct{} // hex(paymentHash) of redeemed tokens
+	st      store.Store
 }
 
 // NewVerifier creates a Verifier backed by the given lnd Client.
-func NewVerifier(lnd *Client) (*Verifier, error) {
+// st records spent tokens for anti-replay; pass store.NewMemStore() for
+// in-process-only state or store.OpenSQLite(path) to persist across restarts.
+func NewVerifier(lnd *Client, st store.Store) (*Verifier, error) {
 	rootKey := make([]byte, 32)
 	if _, err := rand.Read(rootKey); err != nil {
 		return nil, fmt.Errorf("generate root key: %w", err)
@@ -40,7 +40,7 @@ func NewVerifier(lnd *Client) (*Verifier, error) {
 	return &Verifier{
 		lnd:     lnd,
 		rootKey: rootKey,
-		used:    make(map[string]struct{}),
+		st:      st,
 	}, nil
 }
 
@@ -103,12 +103,16 @@ func (v *Verifier) VerifyProof(tokenStr string) (bool, error) {
 	}
 
 	hashHex := hex.EncodeToString(paymentHash)
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	if _, seen := v.used[hashHex]; seen {
+	used, err := v.st.IsUsed(hashHex)
+	if err != nil {
+		return false, fmt.Errorf("check used token: %w", err)
+	}
+	if used {
 		return false, nil
 	}
-	v.used[hashHex] = struct{}{}
+	if err := v.st.MarkUsed(hashHex); err != nil {
+		return false, fmt.Errorf("mark token used: %w", err)
+	}
 
 	return true, nil
 }
