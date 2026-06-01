@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/TheFutonEng/btc-paywall/internal/payment"
+	"github.com/TheFutonEng/btc-paywall/internal/store"
 )
 
 const (
@@ -36,22 +37,24 @@ type pendingEntry struct {
 type Verifier struct {
 	btc     *Client
 	minConf int
+	st      store.Store
 
 	mu      sync.Mutex
 	pending map[string]pendingEntry // address → entry (issued but not yet spent)
-	used    map[string]bool         // spent addresses (anti-replay)
 }
 
 // NewVerifier creates a Verifier backed by the given bitcoind Client.
 // minConf is the minimum number of block confirmations required before a payment
 // is accepted; pass 0 to accept unconfirmed mempool transactions.
+// st records spent addresses for anti-replay; pass store.NewMemStore() for
+// in-process-only state or store.OpenSQLite(path) to persist across restarts.
 // A background goroutine evicts unpaid addresses after pendingTTL.
-func NewVerifier(btc *Client, minConf int) *Verifier {
+func NewVerifier(btc *Client, minConf int, st store.Store) *Verifier {
 	v := &Verifier{
 		btc:     btc,
 		minConf: minConf,
+		st:      st,
 		pending: make(map[string]pendingEntry),
-		used:    make(map[string]bool),
 	}
 	go v.cleanupLoop()
 	return v
@@ -110,12 +113,16 @@ func (v *Verifier) VerifyProof(token string) (bool, error) {
 		return false, nil
 	}
 
-	v.mu.Lock()
-	defer v.mu.Unlock()
-
-	if v.used[addr] {
+	used, err := v.st.IsUsed(addr)
+	if err != nil {
+		return false, fmt.Errorf("check used address: %w", err)
+	}
+	if used {
 		return false, nil
 	}
+
+	v.mu.Lock()
+	defer v.mu.Unlock()
 
 	entry, ok := v.pending[addr]
 	if !ok {
@@ -135,7 +142,9 @@ func (v *Verifier) VerifyProof(token string) (bool, error) {
 		return false, nil
 	}
 
-	v.used[addr] = true
+	if err := v.st.MarkUsed(addr); err != nil {
+		return false, fmt.Errorf("mark address used: %w", err)
+	}
 	return true, nil
 }
 

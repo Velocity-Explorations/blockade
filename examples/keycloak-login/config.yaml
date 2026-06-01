@@ -1,5 +1,7 @@
 listen_addr: ":8090"
 
+# db_path: /data/paywall.db  # uncomment to persist anti-replay tokens across restarts
+
 lnd:
   host: "lnd-server:10009"
   tls_cert_path: "/lnd/tls.cert"
