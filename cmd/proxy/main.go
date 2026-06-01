@@ -24,13 +24,16 @@ func main() {
 
 	// Open the anti-replay token store. If db_path is set, tokens survive
 	// proxy restarts. Otherwise an in-memory store is used (current behaviour).
+	// The store is not deferred — the process lifetime equals the server
+	// lifetime; SQLite flushes are per-INSERT so no data is lost on exit.
 	var st store.Store
+	var sqliteStore *store.SQLiteStore
 	if cfg.DBPath != "" {
 		s, err := store.OpenSQLite(cfg.DBPath)
 		if err != nil {
 			log.Fatalf("open store: %v", err)
 		}
-		defer func() { _ = s.Close() }()
+		sqliteStore = s
 		st = s
 		log.Printf("btc-paywall token store: %s", cfg.DBPath)
 	} else {
@@ -66,6 +69,9 @@ func main() {
 
 	log.Printf("btc-paywall listening on %s", cfg.ListenAddr)
 	if err := http.ListenAndServe(cfg.ListenAddr, handler); err != nil {
+		if sqliteStore != nil {
+			_ = sqliteStore.Close()
+		}
 		log.Fatalf("serve: %v", err)
 	}
 }
