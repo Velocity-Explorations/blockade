@@ -12,15 +12,32 @@ log() { printf '[setup-onchain] %s\n' "$*"; }
 
 BTC="docker compose exec -T bitcoind bitcoin-cli -regtest -rpcuser=bitcoin -rpcpassword=bitcoin"
 
-log "Waiting for bitcoind..."
-for i in $(seq 1 20); do
-  if $BTC getblockchaininfo >/dev/null 2>&1; then
-    log "bitcoind is ready"
-    break
-  fi
-  sleep 1
-  [ "$i" = 20 ] && { log "ERROR: bitcoind not ready after 20s"; exit 1; }
-done
+# wait_until <description> <attempts> <delay-secs> <log-service> <condition>
+# Polls <condition> (re-evaluated each iteration) until it succeeds, up to
+# <attempts> times with <delay-secs> between tries. On timeout it dumps the
+# recent logs from <log-service> and exits 1, so a stuck dependency fails
+# loudly instead of hanging forever. Pass "" for <log-service> to skip the
+# log dump.
+wait_until() {
+  local desc=$1 attempts=$2 delay=$3 svc=$4 cond=$5
+  local i=1
+  log "Waiting for ${desc}..."
+  until eval "$cond" >/dev/null 2>&1; do
+    if [ "$i" -ge "$attempts" ]; then
+      log "ERROR: timed out after ~$((attempts * delay))s waiting for ${desc}"
+      if [ -n "$svc" ]; then
+        log "---- recent logs from ${svc} ----"
+        docker compose logs --tail=50 "$svc" 2>&1 | sed 's/^/    /' || true
+      fi
+      exit 1
+    fi
+    i=$((i + 1))
+    sleep "$delay"
+  done
+  log "${desc} ready"
+}
+
+wait_until "bitcoind" 20 1 bitcoind "$BTC getblockchaininfo"
 
 # ---------------------------------------------------------------------------
 # Wallet helper: load if exists on disk, create if not, skip if already loaded.
@@ -52,8 +69,8 @@ if [ "$BALANCE" = "0.00000000" ] || [ "$BALANCE" = "0" ]; then
   log "Mining 101 blocks to 'tester' wallet for test funds..."
   TESTER_ADDR=$($BTC -rpcwallet=tester getnewaddress)
   $BTC generatetoaddress 101 "$TESTER_ADDR" >/dev/null
-  log "Waiting for tester balance to confirm..."
-  until [ "$($BTC -rpcwallet=tester getbalance 2>/dev/null)" != "0.00000000" ]; do sleep 1; done
+  wait_until "tester wallet balance to confirm" 30 1 bitcoind \
+    "[ \"\$($BTC -rpcwallet=tester getbalance)\" != 0.00000000 ]"
   log "Tester wallet funded."
 else
   log "Tester wallet already has balance ($BALANCE BTC)."

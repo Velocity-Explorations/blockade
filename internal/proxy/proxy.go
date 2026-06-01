@@ -16,6 +16,18 @@ import (
 	"github.com/TheFutonEng/btc-paywall/internal/payment"
 )
 
+// corsHeaders are the response headers this proxy manages itself. They are
+// stripped from upstream responses (see New) so the browser never sees the
+// proxy's value and the upstream's value duplicated on the same response.
+var corsHeaders = []string{
+	"Access-Control-Allow-Origin",
+	"Access-Control-Allow-Methods",
+	"Access-Control-Allow-Headers",
+	"Access-Control-Allow-Credentials",
+	"Access-Control-Expose-Headers",
+	"Access-Control-Max-Age",
+}
+
 // route pairs a path prefix with a reverse proxy to its upstream and the
 // price in satoshis required for access.
 type route struct {
@@ -60,10 +72,23 @@ func New(routes []config.RouteConfig, verifier payment.PaymentVerifier, rl *conf
 		if err != nil {
 			return nil, fmt.Errorf("parse upstream %q: %w", r.Upstream, err)
 		}
+		rp := httputil.NewSingleHostReverseProxy(upstream)
+		// This proxy sets its own CORS headers on every response (see ServeHTTP).
+		// Strip any CORS headers the upstream emits so the browser never sees
+		// duplicate values — httpbin, for example, reflects the request Origin
+		// into Access-Control-Allow-Origin, which would collide with our "*" and
+		// cause the browser to reject the response ("multiple values ... only one
+		// is allowed").
+		rp.ModifyResponse = func(resp *http.Response) error {
+			for _, h := range corsHeaders {
+				resp.Header.Del(h)
+			}
+			return nil
+		}
 		h.routes = append(h.routes, route{
 			pathPrefix: r.PathPrefix,
 			priceSats:  r.PriceSats,
-			rp:         httputil.NewSingleHostReverseProxy(upstream),
+			rp:         rp,
 		})
 	}
 	return h, nil
