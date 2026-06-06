@@ -33,6 +33,14 @@ func OpenSQLite(path string) (*SQLiteStore, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("init schema: %w", err)
 	}
+	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS pending_addresses (
+		addr       TEXT    PRIMARY KEY NOT NULL,
+		sats       INTEGER NOT NULL,
+		expires_at INTEGER NOT NULL
+	)`); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("init pending schema: %w", err)
+	}
 	return &SQLiteStore{db: db}, nil
 }
 
@@ -60,4 +68,48 @@ func (s *SQLiteStore) MarkUsed(key string) error {
 
 func (s *SQLiteStore) Close() error {
 	return s.db.Close()
+}
+
+func (s *SQLiteStore) AddPending(addr string, sats int64, expiresAt time.Time) error {
+	_, err := s.db.Exec(
+		"INSERT OR REPLACE INTO pending_addresses (addr, sats, expires_at) VALUES (?, ?, ?)",
+		addr, sats, expiresAt.Unix(),
+	)
+	if err != nil {
+		return fmt.Errorf("insert pending_addresses: %w", err)
+	}
+	return nil
+}
+
+func (s *SQLiteStore) GetPending(addr string) (PendingEntry, bool, error) {
+	var sats int64
+	var expiresAtUnix int64
+	err := s.db.QueryRow(
+		"SELECT sats, expires_at FROM pending_addresses WHERE addr = ?", addr,
+	).Scan(&sats, &expiresAtUnix)
+	if err == sql.ErrNoRows {
+		return PendingEntry{}, false, nil
+	}
+	if err != nil {
+		return PendingEntry{}, false, fmt.Errorf("query pending_addresses: %w", err)
+	}
+	return PendingEntry{Sats: sats, ExpiresAt: time.Unix(expiresAtUnix, 0)}, true, nil
+}
+
+func (s *SQLiteStore) DeletePending(addr string) error {
+	_, err := s.db.Exec("DELETE FROM pending_addresses WHERE addr = ?", addr)
+	if err != nil {
+		return fmt.Errorf("delete pending_addresses: %w", err)
+	}
+	return nil
+}
+
+func (s *SQLiteStore) PruneExpiredPending(before time.Time) error {
+	_, err := s.db.Exec(
+		"DELETE FROM pending_addresses WHERE expires_at < ?", before.Unix(),
+	)
+	if err != nil {
+		return fmt.Errorf("prune pending_addresses: %w", err)
+	}
+	return nil
 }

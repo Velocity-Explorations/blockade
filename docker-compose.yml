@@ -161,6 +161,7 @@ services:
       - "8092:8092"
     volumes:
       - ./examples/onchain-btc/config.yaml:/config/onchain.yaml:ro
+      - onchain-paywall-data:/data
     networks:
       - paywall
 
@@ -183,6 +184,7 @@ services:
       - "8093:8093"
     volumes:
       - ./examples/onchain-keycloak/config.yaml:/config/onchain-keycloak.yaml:ro
+      - onchain-keycloak-paywall-data:/data
     networks:
       - paywall
 
@@ -205,6 +207,8 @@ volumes:
   bitcoind-data:
   lnd-server-data:
   lnd-client-data:
+  onchain-paywall-data:
+  onchain-keycloak-paywall-data:
 
 networks:
   paywall:

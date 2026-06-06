@@ -150,8 +150,53 @@ grep -q 'invalid or already-used payment token' "$body" \
 log "  got 401 from proxy — address already spent"
 
 log "PASS — failed-login attempt also consumed the token (anti-replay confirmed)"
+
+###############################################################################
+# Phase 4 — restart persistence: pending address survives proxy restart.
+###############################################################################
+log "Phase 4: restart persistence (SQLite pending store)"
+
+log "  step 1/4: POST creds without token (expect 402)"
+resp=$(curl -sS -i -X POST "${PROXY_URL}${TOKEN_PATH}" \
+  -d "grant_type=password" \
+  -d "client_id=${CLIENT_ID}" \
+  -d "username=${USERNAME}" \
+  -d "password=${PASSWORD}")
+parse_challenge "$resp"
+log "  got 402 (address ${ADDRESS}, amount ${AMOUNT_SATS} sats)"
+
+log "  step 2/4: restart the proxy container"
+docker compose restart onchain-keycloak-paywall >/dev/null 2>&1
+for i in $(seq 1 30); do
+  code=$(curl -sS -o /dev/null -w '%{http_code}' -X POST "${PROXY_URL}${TOKEN_PATH}" \
+    -d "grant_type=password" -d "client_id=${CLIENT_ID}" \
+    -d "username=${USERNAME}" -d "password=${PASSWORD}" 2>/dev/null || true)
+  [ "$code" = "402" ] && break
+  sleep 1
+done
+[ "$code" = "402" ] || fail "proxy did not recover after restart"
+log "  proxy back up after restart"
+
+log "  step 3/4: pay ${AMOUNT_SATS} sats to ${ADDRESS} from tester wallet"
+pay_address "$ADDRESS" "$AMOUNT_SATS"
+log "  payment broadcast to mempool"
+
+log "  step 4/4: re-POST with pre-restart address token (expect 200 + JWT)"
+status=$(curl -sS -o "$body" -w '%{http_code}' -X POST "${PROXY_URL}${TOKEN_PATH}" \
+  -H "Authorization: BTC-Onchain ${ADDRESS}" \
+  -d "grant_type=password" \
+  -d "client_id=${CLIENT_ID}" \
+  -d "username=${USERNAME}" \
+  -d "password=${PASSWORD}")
+[ "$status" = "200" ] || { cat "$body" >&2; fail "expected 200 after restart, got '$status' — pending entry lost"; }
+jq -e '.access_token | type=="string" and length > 100' "$body" >/dev/null \
+  || { cat "$body" >&2; fail "response does not contain a plausible access_token"; }
+log "  got 200 with valid access_token — pending entry survived restart"
+log "PASS — SQLite persistence confirmed"
+
 log ""
 log "ALL PHASES PASSED."
 log "  - Phase 1: valid creds + paid address -> 200 + JWT"
 log "  - Phase 2: invalid creds + paid address -> 401 from Keycloak (token still spent)"
 log "  - Phase 3: replayed address -> 401 from proxy (anti-replay)"
+log "  - Phase 4: pending address survives proxy restart -> 200 + JWT"

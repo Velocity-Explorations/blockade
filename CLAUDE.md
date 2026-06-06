@@ -109,17 +109,17 @@ The root key used to mint macaroons is generated randomly at startup and held in
 
 Tokens are a bare Bitcoin address: `BTC-Onchain <address>`.
 
-The proxy issues one fresh address per request and stores it in an in-memory `pending` map alongside the required amount and an expiry timestamp. Verification steps (all four must pass):
-1. Address is in the `pending` map (was issued by this process)
+The proxy issues one fresh address per request and stores it in a `store.PendingStore` alongside the required amount and an expiry timestamp. Verification steps (all four must pass):
+1. Address is in the pending store (was issued by this process)
 2. Address has not expired (issued within the last hour; controlled by `pendingTTL`)
 3. `getreceivedbyaddress(address, minconf) >= required sats` (minconf from config, default 0)
-4. Address not in the in-memory `used` map (anti-replay)
+4. Address not in the `used` store (anti-replay)
 
-A background goroutine (started in `NewVerifier`) evicts unpaid addresses from the `pending` map every 5 minutes, preventing unbounded growth. The goroutine runs for the process lifetime — no shutdown signal is needed for a POC.
+A background goroutine (started in `NewVerifier`) calls `PruneExpiredPending` every 5 minutes, preventing unbounded growth. The goroutine runs for the process lifetime — no shutdown signal is needed for a POC.
 
 The `WWW-Authenticate` header includes `expires_in` (seconds) so clients know the payment window.
 
-Same in-memory caveat as Lightning: state is lost on restart.
+Both the pending store and the anti-replay store use `store.PendingStore` and `store.Store` respectively. When `db_path` is configured, both are backed by SQLite and survive proxy restarts. When omitted, both fall back to in-memory state and are lost on restart. The example configs for POCs 3 and 4 have `db_path` enabled by default.
 
 ## Docker Compose topology
 
