@@ -83,5 +83,5 @@ curl -H "Authorization: BTC-Onchain bcrt1q..." http://localhost:8092/get
 
 - **0-conf**: payments are accepted from the mempool before block confirmation. A double-spend is technically possible but economically irrational for small amounts. Set `min_confirmations: 1` (or higher) in config to require confirmed transactions.
 - **Address expiry**: issued addresses expire after 1 hour (`pendingTTL` in `verifier.go`). A background goroutine evicts expired unpaid addresses every 5 minutes, preventing unbounded memory growth. The `expires_in` field in the `WWW-Authenticate` header tells the client how long they have.
-- **In-memory state**: the `pending` map and `used` set live only in process memory. A restart clears them — addresses issued before a restart cannot be spent after it.
+- **Persistence**: when `db_path` is set in config, issued-but-unpaid addresses and spent-address records are stored in SQLite and survive proxy restarts. The example config has `db_path: /data/paywall.db` enabled by default, backed by a named Docker volume. Without `db_path`, both stores are in-memory and lost on restart.
 - **No on-chain sweep**: received sats accumulate in bitcoind's `paywall` wallet. In production, use periodic wallet sweeps to move funds to cold storage.
