@@ -1,6 +1,6 @@
 listen_addr: ":8092"
 
-# db_path: /data/paywall.db  # uncomment to persist anti-replay tokens across restarts
+db_path: /data/paywall.db
 
 bitcoind:
   host: "bitcoind:18443"
