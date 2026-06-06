@@ -22,11 +22,12 @@ func main() {
 		log.Fatalf("load config: %v", err)
 	}
 
-	// Open the anti-replay token store. If db_path is set, tokens survive
-	// proxy restarts. Otherwise an in-memory store is used (current behaviour).
-	// The store is not deferred — the process lifetime equals the server
-	// lifetime; SQLite flushes are per-INSERT so no data is lost on exit.
+	// Open the anti-replay and pending-address stores. If db_path is set, state
+	// survives proxy restarts. Otherwise in-memory stores are used.
+	// Not deferred — the process lifetime equals the server lifetime; SQLite
+	// flushes are per-INSERT so no data is lost on exit.
 	var st store.Store
+	var ps store.PendingStore
 	var sqliteStore *store.SQLiteStore
 	if cfg.DBPath != "" {
 		s, err := store.OpenSQLite(cfg.DBPath)
@@ -35,9 +36,12 @@ func main() {
 		}
 		sqliteStore = s
 		st = s
+		ps = s
 		log.Printf("btc-paywall token store: %s", cfg.DBPath)
 	} else {
-		st = store.NewMemStore()
+		m := store.NewMemStore()
+		st = m
+		ps = m
 	}
 
 	var verifier payment.PaymentVerifier
@@ -59,7 +63,7 @@ func main() {
 
 	case cfg.Bitcoind != nil:
 		btcClient := onchain.NewClient(cfg.Bitcoind.Host, cfg.Bitcoind.RPCUser, cfg.Bitcoind.RPCPass)
-		verifier = onchain.NewVerifier(btcClient, cfg.Bitcoind.MinConfirmations, st)
+		verifier = onchain.NewVerifier(btcClient, cfg.Bitcoind.MinConfirmations, st, ps)
 	}
 
 	handler, err := proxy.New(cfg.Routes, verifier, cfg.RateLimit)

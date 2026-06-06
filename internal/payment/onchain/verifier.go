@@ -17,18 +17,13 @@ const (
 	wwwAuthHeader = "WWW-Authenticate"
 
 	// pendingTTL is how long an issued address remains valid for payment.
-	// Addresses not paid within this window are evicted from the pending map.
+	// Addresses not paid within this window are evicted from the pending store.
 	pendingTTL = time.Hour
 
 	// cleanupInterval controls how often the background goroutine sweeps for
 	// expired pending entries.
 	cleanupInterval = 5 * time.Minute
 )
-
-type pendingEntry struct {
-	sats      int64
-	expiresAt time.Time
-}
 
 // Verifier implements payment.PaymentVerifier using on-chain Bitcoin payments.
 // Each request requires a fresh on-chain payment to a newly generated address.
@@ -38,42 +33,38 @@ type Verifier struct {
 	btc     *Client
 	minConf int
 	st      store.Store
+	ps      store.PendingStore
 
-	mu      sync.Mutex
-	pending map[string]pendingEntry // address → entry (issued but not yet spent)
+	// mu serialises VerifyProof to prevent TOCTOU on concurrent calls for
+	// the same address (get-pending → check-payment → delete-pending → mark-used).
+	mu sync.Mutex
 }
 
 // NewVerifier creates a Verifier backed by the given bitcoind Client.
 // minConf is the minimum number of block confirmations required before a payment
 // is accepted; pass 0 to accept unconfirmed mempool transactions.
-// st records spent addresses for anti-replay; pass store.NewMemStore() for
-// in-process-only state or store.OpenSQLite(path) to persist across restarts.
+// st records spent addresses for anti-replay; ps persists issued-but-unpaid
+// addresses so they survive proxy restarts. Pass store.NewMemStore() for both
+// for in-process-only state, or store.OpenSQLite(path) for persistence.
 // A background goroutine evicts unpaid addresses after pendingTTL.
-func NewVerifier(btc *Client, minConf int, st store.Store) *Verifier {
+func NewVerifier(btc *Client, minConf int, st store.Store, ps store.PendingStore) *Verifier {
 	v := &Verifier{
 		btc:     btc,
 		minConf: minConf,
 		st:      st,
-		pending: make(map[string]pendingEntry),
+		ps:      ps,
 	}
 	go v.cleanupLoop()
 	return v
 }
 
-// cleanupLoop periodically evicts expired entries from the pending map.
+// cleanupLoop periodically evicts expired entries from the pending store.
 // It runs for the lifetime of the process — no shutdown signal is needed for a POC.
 func (v *Verifier) cleanupLoop() {
 	ticker := time.NewTicker(cleanupInterval)
 	defer ticker.Stop()
 	for range ticker.C {
-		now := time.Now()
-		v.mu.Lock()
-		for addr, entry := range v.pending {
-			if now.After(entry.expiresAt) {
-				delete(v.pending, addr)
-			}
-		}
-		v.mu.Unlock()
+		_ = v.ps.PruneExpiredPending(time.Now())
 	}
 }
 
@@ -92,10 +83,9 @@ func (v *Verifier) IssueChallenge(w http.ResponseWriter, r *http.Request) error 
 	}
 
 	expiresAt := time.Now().Add(pendingTTL)
-
-	v.mu.Lock()
-	v.pending[addr] = pendingEntry{sats: priceSats, expiresAt: expiresAt}
-	v.mu.Unlock()
+	if err := v.ps.AddPending(addr, priceSats, expiresAt); err != nil {
+		return fmt.Errorf("store pending address: %w", err)
+	}
 
 	w.Header().Set(wwwAuthHeader, fmt.Sprintf(
 		`BTC-Onchain address="%s", amount_sats="%d", expires_in="%d"`,
@@ -124,13 +114,16 @@ func (v *Verifier) VerifyProof(token string) (bool, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 
-	entry, ok := v.pending[addr]
+	entry, ok, err := v.ps.GetPending(addr)
+	if err != nil {
+		return false, fmt.Errorf("get pending address: %w", err)
+	}
 	if !ok {
 		return false, nil
 	}
 
-	if time.Now().After(entry.expiresAt) {
-		delete(v.pending, addr)
+	if time.Now().After(entry.ExpiresAt) {
+		_ = v.ps.DeletePending(addr)
 		return false, nil
 	}
 
@@ -138,10 +131,13 @@ func (v *Verifier) VerifyProof(token string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("check received: %w", err)
 	}
-	if received < entry.sats {
+	if received < entry.Sats {
 		return false, nil
 	}
 
+	if err := v.ps.DeletePending(addr); err != nil {
+		return false, fmt.Errorf("delete pending address: %w", err)
+	}
 	if err := v.st.MarkUsed(addr); err != nil {
 		return false, fmt.Errorf("mark address used: %w", err)
 	}
