@@ -100,8 +100,42 @@ status=$(curl -sS -o /dev/null -w '%{http_code}' \
 log "  got 401 — no payment found"
 log "PASS — unpaid address rejected"
 
+###############################################################################
+# Phase 4 — restart persistence: pending address survives proxy restart.
+###############################################################################
+log "Phase 4: restart persistence (SQLite pending store)"
+
+log "  step 1/4: GET /get to obtain a fresh challenge address"
+resp=$(curl -sS -i "${PROXY_URL}/get")
+parse_challenge "$resp"
+log "  got 402 (address ${ADDRESS}, amount ${AMOUNT_SATS} sats)"
+
+log "  step 2/4: restart the proxy container"
+docker compose restart onchain-paywall >/dev/null 2>&1
+# Wait for the proxy to accept connections again (up to 30s).
+for i in $(seq 1 30); do
+  code=$(curl -sS -o /dev/null -w '%{http_code}' "${PROXY_URL}/get" 2>/dev/null || true)
+  [ "$code" = "402" ] && break
+  sleep 1
+done
+[ "$code" = "402" ] || fail "proxy did not recover after restart"
+log "  proxy back up after restart"
+
+log "  step 3/4: send ${AMOUNT_SATS} sats to ${ADDRESS} from tester wallet"
+send_onchain "$ADDRESS" "$AMOUNT_SATS"
+log "  payment broadcast to mempool"
+
+log "  step 4/4: GET /get with pre-restart address token (expect 200)"
+status=$(curl -sS -o /dev/null -w '%{http_code}' \
+  -H "Authorization: BTC-Onchain ${ADDRESS}" \
+  "${PROXY_URL}/get")
+[ "$status" = "200" ] || fail "expected 200 after restart, got '$status' — pending entry lost"
+log "  got 200 — pending entry survived restart"
+log "PASS — SQLite persistence confirmed"
+
 log ""
 log "ALL PHASES PASSED."
 log "  - Phase 1: paid address token -> 200"
 log "  - Phase 2: replay of spent address -> 401"
 log "  - Phase 3: unpaid address token -> 401"
+log "  - Phase 4: pending address survives proxy restart -> 200"
