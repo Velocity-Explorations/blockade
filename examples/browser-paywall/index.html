@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>blockAIde — L402 Paywall Widget Demo</title>
+  <style>
+    :root {
+      --bg: #0f0f0f;
+      --surface: #1a1a1a;
+      --border: #2a2a2a;
+      --orange: #f7931a;
+      --text: #e5e5e5;
+      --muted: #737373;
+      --code-bg: #111;
+      --code-text: #a3e635;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 24px 32px;
+    }
+    header h1 { font-size: 22px; font-weight: 700; }
+    header h1 span { color: var(--orange); }
+    header p { color: var(--muted); font-size: 13px; margin-top: 2px; }
+    main {
+      max-width: 680px;
+      margin: 0 auto;
+      padding: 40px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 24px;
+    }
+    .card h2 {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--orange);
+      margin-bottom: 12px;
+    }
+    .card p { color: var(--muted); font-size: 14px; margin-bottom: 16px; }
+    .demo-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 24px;
+      background: var(--orange);
+      color: #000;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 15px;
+      transition: background .15s;
+    }
+    .demo-link:hover { background: #e8841a; }
+    .code {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px 14px;
+      font-family: 'Menlo', 'Monaco', 'Consolas', monospace;
+      font-size: 13px;
+      color: var(--code-text);
+      white-space: pre;
+      overflow-x: auto;
+      margin: 8px 0;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 20px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all .15s;
+      background: var(--border);
+      color: var(--text);
+    }
+    .btn:hover { background: #333; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+    #programmatic-result {
+      margin-top: 12px;
+      display: none;
+    }
+    .label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1><span>block</span>AIde</h1>
+  <p>L402 paywall widget demo. Requires the proxy on :8080 (make up && make setup).</p>
+</header>
+
+<main>
+
+  <!-- Mode 1: Declarative -->
+  <div class="card">
+    <h2>Mode 1: Declarative</h2>
+    <p>One attribute, one script tag, no application code. Click the link to trigger the paywall modal.</p>
+    <div class="code">&lt;a href="http://localhost:8080/get" data-l402&gt;Download Protected Resource&lt;/a&gt;
+&lt;script src="l402-paywall.js"&gt;&lt;/script&gt;</div>
+    <a href="http://localhost:8080/get" data-l402 class="demo-link">Download Protected Resource</a>
+  </div>
+
+  <!-- Mode 2: Programmatic -->
+  <div class="card">
+    <h2>Mode 2: Programmatic</h2>
+    <p>Drop-in fetch replacement with the same call signature.</p>
+    <div class="code">const res = await l402Fetch('http://localhost:8080/get');
+const data = await res.json();</div>
+    <div class="row">
+      <button class="btn" onclick="demoProgrammatic()">Run l402Fetch()</button>
+    </div>
+    <div id="programmatic-result">
+      <div class="label">Response body</div>
+      <div class="code" id="programmatic-body" style="color:#94a3b8;max-height:200px;overflow-y:auto;white-space:pre-wrap"></div>
+    </div>
+  </div>
+
+  <!-- Mode 3: Global -->
+  <div class="card">
+    <h2>Mode 3: Global Monkey-Patch</h2>
+    <p>Opt-in override of window.fetch. Every fetch that hits a 402 endpoint triggers the paywall automatically.</p>
+    <div class="code">L402.installGlobal();
+// now plain fetch() handles 402s
+const res = await fetch('http://localhost:8080/get');</div>
+    <div class="row">
+      <button class="btn" id="btn-install" onclick="demoGlobal()">Install & Fetch</button>
+      <button class="btn" onclick="demoRestore()">Restore Original Fetch</button>
+    </div>
+    <div id="global-result" style="display:none;margin-top:12px">
+      <div class="label">Response body</div>
+      <div class="code" id="global-body" style="color:#94a3b8;max-height:200px;overflow-y:auto;white-space:pre-wrap"></div>
+    </div>
+  </div>
+
+</main>
+
+<script src="l402-paywall.js"></script>
+<script>
+  async function demoProgrammatic() {
+    try {
+      var res = await l402Fetch('http://localhost:8080/get');
+      if (!res.ok) return;
+      var data = await res.json();
+      document.getElementById('programmatic-body').textContent = JSON.stringify(data, null, 2);
+      document.getElementById('programmatic-result').style.display = 'block';
+    } catch (e) {}
+  }
+
+  async function demoGlobal() {
+    L402.installGlobal();
+    try {
+      var res = await fetch('http://localhost:8080/get');
+      if (!res.ok) return;
+      var data = await res.json();
+      document.getElementById('global-body').textContent = JSON.stringify(data, null, 2);
+      document.getElementById('global-result').style.display = 'block';
+    } catch (e) {}
+    L402.restoreGlobal();
+  }
+
+  function demoRestore() {
+    L402.restoreGlobal();
+  }
+</script>
+</body>
+</html>
