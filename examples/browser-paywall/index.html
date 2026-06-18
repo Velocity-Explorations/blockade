@@ -5,32 +5,74 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>blockAIde — L402 Paywall Widget Demo</title>
   <style>
+    /* --- VX font-face declarations (local) --- */
+    @font-face {
+      font-family: 'Inter Tight';
+      src: url('../../vx-design/fonts/InterTight-VariableFont_wght.ttf') format('truetype-variations');
+      font-weight: 100 900;
+      font-style: normal;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: 'Inter Tight';
+      src: url('../../vx-design/fonts/InterTight-Italic-VariableFont_wght.ttf') format('truetype-variations');
+      font-weight: 100 900;
+      font-style: italic;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: 'Chakra Petch';
+      src: url('../../vx-design/fonts/ChakraPetch-Regular.ttf') format('truetype');
+      font-weight: 400;
+      font-style: normal;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: 'Chakra Petch';
+      src: url('../../vx-design/fonts/ChakraPetch-SemiBold.ttf') format('truetype');
+      font-weight: 600;
+      font-style: normal;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: 'Chakra Petch';
+      src: url('../../vx-design/fonts/ChakraPetch-Bold.ttf') format('truetype');
+      font-weight: 700;
+      font-style: normal;
+      font-display: swap;
+    }
+
     :root {
-      --bg: #0f0f0f;
-      --surface: #1a1a1a;
-      --border: #2a2a2a;
-      --orange: #f7931a;
-      --purple: #a78bfa;
-      --text: #e5e5e5;
-      --muted: #737373;
-      --code-bg: #111;
-      --code-text: #a3e635;
+      --bg: #1E1E1E;
+      --surface: #141414;
+      --border: #2A2A2A;
+      --accent: #FFCB03;
+      --text: #F5F5F5;
+      --muted: #BEBEBE;
+      --code-bg: #141414;
+      --code-text: #FFCB03;
+      --bad-red: #E5484D;
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       background: var(--bg);
       color: var(--text);
-      font-family: system-ui, -apple-system, sans-serif;
+      font-family: 'Inter Tight', 'Helvetica Neue', Arial, sans-serif;
       font-size: 15px;
-      line-height: 1.6;
+      line-height: 1.5;
       min-height: 100vh;
     }
     header {
       border-bottom: 1px solid var(--border);
       padding: 24px 32px;
     }
-    header h1 { font-size: 22px; font-weight: 700; }
-    header h1 span { color: var(--orange); }
+    header h1 {
+      font-family: 'Chakra Petch', 'Inter Tight', sans-serif;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.015em;
+    }
+    header h1 span { color: var(--accent); }
     header p { color: var(--muted); font-size: 13px; margin-top: 2px; }
     main {
       max-width: 720px;
@@ -43,15 +85,16 @@
     .card {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: 6px;
       padding: 24px;
     }
     .card h2 {
-      font-size: 14px;
-      font-weight: 700;
-      letter-spacing: .06em;
+      font-family: 'Chakra Petch', 'Inter Tight', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.16em;
       text-transform: uppercase;
-      color: var(--orange);
+      color: var(--accent);
       margin-bottom: 12px;
     }
     .card p { color: var(--muted); font-size: 14px; margin-bottom: 16px; }
@@ -60,21 +103,22 @@
       align-items: center;
       gap: 8px;
       padding: 12px 24px;
-      background: var(--orange);
-      color: #000;
+      background: var(--accent);
+      color: #1E1E1E;
       text-decoration: none;
-      border-radius: 8px;
+      border-radius: 4px;
       font-weight: 600;
       font-size: 15px;
-      transition: background .15s;
+      transition: opacity 200ms cubic-bezier(0.2, 0.7, 0.2, 1);
     }
-    .demo-link:hover { background: #e8841a; }
+    .demo-link:hover { opacity: 0.88; }
+    .demo-link:active { opacity: 0.92; transform: translateY(0.5px); }
     .code {
       background: var(--code-bg);
       border: 1px solid var(--border);
-      border-radius: 6px;
+      border-radius: 4px;
       padding: 12px 14px;
-      font-family: 'Menlo', 'Monaco', 'Consolas', monospace;
+      font-family: 'Chakra Petch', ui-monospace, SFMono-Regular, Menlo, monospace;
       font-size: 13px;
       color: var(--code-text);
       white-space: pre;
@@ -86,31 +130,33 @@
       align-items: center;
       gap: 6px;
       padding: 10px 20px;
-      border-radius: 6px;
+      border-radius: 4px;
       border: none;
       cursor: pointer;
+      font-family: 'Inter Tight', 'Helvetica Neue', Arial, sans-serif;
       font-size: 14px;
       font-weight: 600;
-      transition: all .15s;
+      transition: opacity 200ms cubic-bezier(0.2, 0.7, 0.2, 1);
       background: var(--border);
       color: var(--text);
     }
-    .btn:hover { background: #333; }
-    .btn-danger { background: #7f1d1d; color: #fca5a5; }
-    .btn-danger:hover { background: #991b1b; }
+    .btn:hover { opacity: 0.88; }
+    .btn:active { opacity: 0.92; transform: translateY(0.5px); }
+    .btn-danger { background: rgba(229, 72, 77, 0.18); color: var(--bad-red); border: 1px solid rgba(229, 72, 77, 0.3); }
+    .btn-danger:hover { opacity: 0.88; }
     .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
     .status-bar {
       display: flex;
       gap: 16px;
       align-items: center;
       padding: 12px 16px;
-      background: rgba(167, 139, 250, .08);
-      border: 1px solid rgba(167, 139, 250, .2);
+      background: rgba(255, 203, 3, 0.08);
+      border: 1px solid rgba(255, 203, 3, 0.2);
       border-radius: 6px;
       font-size: 13px;
       margin-bottom: 16px;
     }
-    .status-bar .label { color: var(--purple); font-weight: 600; margin-bottom: 0; }
+    .status-bar .label { color: var(--accent); font-weight: 600; margin-bottom: 0; }
     .status-bar .val { color: var(--text); }
     .result-box {
       margin-top: 12px;
@@ -161,7 +207,7 @@ const data = await res.json();</div>
     </div>
     <div id="programmatic-result" class="result-box">
       <div class="result-label">Response body</div>
-      <div class="code" id="programmatic-body" style="color:#94a3b8;max-height:200px;overflow-y:auto;white-space:pre-wrap"></div>
+      <div class="code" id="programmatic-body" style="color:#BEBEBE;max-height:200px;overflow-y:auto;white-space:pre-wrap"></div>
     </div>
   </div>
 
@@ -178,7 +224,7 @@ const res = await fetch('http://localhost:8080/get');</div>
     </div>
     <div id="global-result" class="result-box">
       <div class="result-label">Response body</div>
-      <div class="code" id="global-body" style="color:#94a3b8;max-height:200px;overflow-y:auto;white-space:pre-wrap"></div>
+      <div class="code" id="global-body" style="color:#BEBEBE;max-height:200px;overflow-y:auto;white-space:pre-wrap"></div>
     </div>
   </div>
 
@@ -191,7 +237,7 @@ const res = await fetch('http://localhost:8080/get');</div>
     var el = document.getElementById('cred-status');
     if (cred) {
       el.textContent = 'Enrolled (credential held in sessionStorage)';
-      el.style.color = '#a78bfa';
+      el.style.color = '#FFCB03';
     } else {
       el.textContent = 'Not enrolled';
       el.style.color = '';

@@ -8,18 +8,32 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>blockAIde — Cost of Attack</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Inter:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
+  @font-face {
+    font-family: 'Inter Tight';
+    src: url('../../vx-design/fonts/InterTight-VariableFont_wght.ttf') format('truetype-variations');
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: 'Inter Tight';
+    src: url('../../vx-design/fonts/InterTight-Italic-VariableFont_wght.ttf') format('truetype-variations');
+    font-weight: 100 900;
+    font-style: italic;
+    font-display: swap;
+  }
+  @font-face { font-family: 'Chakra Petch'; src: url('../../vx-design/fonts/ChakraPetch-Regular.ttf') format('truetype'); font-weight: 400; font-style: normal; font-display: swap; }
+  @font-face { font-family: 'Chakra Petch'; src: url('../../vx-design/fonts/ChakraPetch-SemiBold.ttf') format('truetype'); font-weight: 600; font-style: normal; font-display: swap; }
+  @font-face { font-family: 'Chakra Petch'; src: url('../../vx-design/fonts/ChakraPetch-Bold.ttf') format('truetype'); font-weight: 700; font-style: normal; font-display: swap; }
   :root{
-    --bg:#111111; --panel:#181818; --panel-2:#1f1f1f; --line:#2c2c2c;
-    --ink:#ECECEC; --ink-dim:#8C8C8C; --ink-faint:#5C5C5C;
-    --gold:#F9BE3C; --gold-soft:rgba(249,190,60,.13);
+    --bg:#1E1E1E; --panel:#141414; --panel-2:#1f1f1f; --line:#2A2A2A;
+    --ink:#F5F5F5; --ink-dim:#BEBEBE; --ink-faint:#757575;
+    --gold:#FFCB03; --gold-soft:rgba(255,203,3,.13);
     --slate:#6E7A8A; --amber:#E08A2B; --ok:#56C596; --bad:#E5484D;
-    --mono:'Space Mono',ui-monospace,Menlo,Consolas,monospace;
-    --disp:'Space Grotesk',system-ui,sans-serif;
-    --body:'Inter',system-ui,sans-serif;
+    --mono:'Chakra Petch',ui-monospace,Menlo,monospace;
+    --disp:'Inter Tight','Helvetica Neue',Arial,sans-serif;
+    --body:'Inter Tight','Helvetica Neue',Arial,sans-serif;
   }
   *{box-sizing:border-box}
   html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);-webkit-font-smoothing:antialiased}
@@ -27,26 +41,26 @@
   header{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 18px;border-bottom:1px solid var(--line);padding-bottom:18px}
   .wordmark{font-family:var(--disp);font-weight:700;font-size:clamp(26px,4vw,40px);letter-spacing:-.01em}
   .wordmark b{color:var(--gold)}
-  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink-faint)}
+  .eyebrow{font-family:'Chakra Petch',var(--mono);font-weight:600;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-faint)}
   .thesis{flex-basis:100%;color:var(--ink-dim);font-size:15px;max-width:62ch;margin-top:6px;line-height:1.5}
   .grid{display:grid;grid-template-columns:300px 1fr;gap:24px;margin-top:24px;align-items:start}
   @media(max-width:840px){.grid{grid-template-columns:1fr}}
-  .controls{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 18px 8px}
+  .controls{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:18px 18px 8px}
   .ctl{margin-bottom:18px}.ctl:last-child{margin-bottom:10px}
   .ctl label{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;color:var(--ink-dim);letter-spacing:.02em;margin-bottom:8px}
   .ctl .val{font-family:var(--mono);color:var(--gold);font-size:13px}
   input[type=range]{width:100%;-webkit-appearance:none;appearance:none;height:3px;background:var(--line);border-radius:2px;outline-offset:4px}
-  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:16px;height:16px;border-radius:50%;background:var(--gold);cursor:pointer;border:2px solid #111}
-  input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--gold);cursor:pointer;border:2px solid #111}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:16px;height:16px;border-radius:50%;background:var(--gold);cursor:pointer;border:2px solid #1E1E1E}
+  input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--gold);cursor:pointer;border:2px solid #1E1E1E}
   input[type=range]:focus-visible{outline:2px solid var(--gold)}
   .hint{font-size:11px;color:var(--ink-faint);margin-top:6px;line-height:1.4}
   .stage{display:flex;flex-direction:column;gap:18px}
-  .chartwrap{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 16px 10px;position:relative}
+  .chartwrap{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px 16px 10px;position:relative}
   .chart-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:12px;flex-wrap:wrap}
-  .chart-title{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-faint)}
-  .seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+  .chart-title{font-family:'Chakra Petch',var(--mono);font-weight:600;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-faint)}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:4px;overflow:hidden}
   .seg button{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;background:transparent;color:var(--ink-dim);border:0;padding:6px 12px;cursor:pointer}
-  .seg button[aria-pressed=true]{background:var(--gold);color:#111}
+  .seg button[aria-pressed=true]{background:var(--gold);color:#1E1E1E}
   .seg button:focus-visible{outline:2px solid var(--gold);outline-offset:-2px}
   svg{display:block;width:100%;height:auto}
   .legend{display:flex;flex-wrap:wrap;gap:14px 20px;margin-top:8px;font-size:12px;color:var(--ink-dim)}
@@ -54,7 +68,7 @@
   .swatch{width:18px;height:0;border-top-width:3px;border-top-style:solid;display:inline-block}
   .readout{display:grid;grid-template-columns:1.3fr 1fr;gap:14px}
   @media(max-width:560px){.readout{grid-template-columns:1fr}}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px 18px}
   .card .k{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:8px}
   .big{font-family:var(--mono);font-weight:700;font-size:clamp(28px,4.4vw,40px);line-height:1;color:var(--gold)}
   .big .sub{display:block;font-weight:400;font-size:13px;color:var(--ink-dim);margin-top:8px;letter-spacing:0}
@@ -62,7 +76,7 @@
   .row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:13px}
   .row .rk{color:var(--ink-dim)}.row .rv{font-family:var(--mono);color:var(--ink)}
   .row .rv.flat{color:var(--slate)}.row .rv.gold{color:var(--gold)}
-  .verdict{grid-column:1/-1;border-radius:10px;padding:16px 18px;border:1px solid var(--line);display:flex;align-items:center;gap:16px;background:var(--panel)}
+  .verdict{grid-column:1/-1;border-radius:6px;padding:16px 18px;border:1px solid var(--line);display:flex;align-items:center;gap:16px;background:var(--panel)}
   .chip{font-family:var(--mono);font-weight:700;font-size:13px;letter-spacing:.12em;text-transform:uppercase;padding:7px 12px;border-radius:6px;white-space:nowrap}
   .chip.ok{color:#06281c;background:var(--ok)}.chip.bad{color:#2a0708;background:var(--bad)}
   .verdict p{margin:0;font-size:13px;color:var(--ink-dim);line-height:1.5}.verdict p b{color:var(--ink)}

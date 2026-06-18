@@ -1,0 +1,319 @@
+/* =====================================================================
+   VX — Velocity Explorations
+   colors_and_type.css
+   Monochromatic core + Prussian Blue & Philippine Yellow accents.
+   Typefaces: Inter Tight (headings) + Inter (body).
+   ===================================================================== */
+
+/* ---------- Webfonts (local — see fonts/README.md) ------------------- */
+@font-face {
+  font-family: 'Inter Tight';
+  src: url('fonts/InterTight-VariableFont_wght.ttf') format('truetype-variations');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Inter Tight';
+  src: url('fonts/InterTight-Italic-VariableFont_wght.ttf') format('truetype-variations');
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Space Grotesk';
+  src: url('fonts/SpaceGrotesk-VariableFont_wght.ttf') format('truetype-variations');
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+}
+/* Chakra Petch — geometric/tactical display face. Pairs with the wordmark
+   character (sharp diagonals, condensed vertices). Use for eyebrows,
+   operator-console headings, and short display strings. */
+@font-face { font-family: 'Chakra Petch'; src: url('fonts/ChakraPetch-Light.ttf') format('truetype'); font-weight: 300; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Chakra Petch'; src: url('fonts/ChakraPetch-LightItalic.ttf') format('truetype'); font-weight: 300; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Chakra Petch'; src: url('fonts/ChakraPetch-Regular.ttf') format('truetype'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Chakra Petch'; src: url('fonts/ChakraPetch-Italic.ttf') format('truetype'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Chakra Petch'; src: url('fonts/ChakraPetch-Medium.ttf') format('truetype'); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Chakra Petch'; src: url('fonts/ChakraPetch-MediumItalic.ttf') format('truetype'); font-weight: 500; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Chakra Petch'; src: url('fonts/ChakraPetch-SemiBold.ttf') format('truetype'); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Chakra Petch'; src: url('fonts/ChakraPetch-SemiBoldItalic.ttf') format('truetype'); font-weight: 600; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Chakra Petch'; src: url('fonts/ChakraPetch-Bold.ttf') format('truetype'); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Chakra Petch'; src: url('fonts/ChakraPetch-BoldItalic.ttf') format('truetype'); font-weight: 700; font-style: italic; font-display: swap; }
+/* IBM Plex Sans Condensed — body / dense data tables. */
+@font-face { font-family: 'IBM Plex Sans Condensed'; src: url('fonts/IBMPlexSansCondensed-Thin.ttf') format('truetype'); font-weight: 100; font-style: normal; font-display: swap; }
+@font-face { font-family: 'IBM Plex Sans Condensed'; src: url('fonts/IBMPlexSansCondensed-ExtraLight.ttf') format('truetype'); font-weight: 200; font-style: normal; font-display: swap; }
+@font-face { font-family: 'IBM Plex Sans Condensed'; src: url('fonts/IBMPlexSansCondensed-Light.ttf') format('truetype'); font-weight: 300; font-style: normal; font-display: swap; }
+@font-face { font-family: 'IBM Plex Sans Condensed'; src: url('fonts/IBMPlexSansCondensed-Regular.ttf') format('truetype'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'IBM Plex Sans Condensed'; src: url('fonts/IBMPlexSansCondensed-Italic.ttf') format('truetype'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'IBM Plex Sans Condensed'; src: url('fonts/IBMPlexSansCondensed-Medium.ttf') format('truetype'); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'IBM Plex Sans Condensed'; src: url('fonts/IBMPlexSansCondensed-SemiBold.ttf') format('truetype'); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: 'IBM Plex Sans Condensed'; src: url('fonts/IBMPlexSansCondensed-Bold.ttf') format('truetype'); font-weight: 700; font-style: normal; font-display: swap; }
+
+:root {
+  /* ===== Core monochromatic palette ============================== */
+  --vx-cod-grey:     #1E1E1E;  /* primary dark surface */
+  --vx-tundora:      #434343;  /* elevated surface on dark */
+  --vx-boulder:      #757575;  /* muted, secondary text */
+  --vx-silver:       #BEBEBE;  /* borders, dividers, disabled */
+  --vx-alto:         #DADADA;  /* light borders */
+  --vx-wild-sand:    #F5F5F5;  /* primary light surface */
+
+  /* ===== Accents — use sparingly ================================= */
+  --vx-prussian-blue: #00274C;  /* depth, authority — light/yellow bg only */
+  --vx-philippine-yellow: #FFCB03; /* energy, signal — any bg */
+
+  /* ===== Semantic — light theme (default) ======================== */
+  --vx-bg:        var(--vx-wild-sand);
+  --vx-bg-elev:   #FFFFFF;            /* near-white card on light bg */
+  --vx-bg-sunken: #ECECEC;
+  --vx-fg:        var(--vx-cod-grey); /* primary text */
+  --vx-fg-muted:  var(--vx-boulder);  /* secondary text */
+  --vx-fg-faint:  var(--vx-silver);
+  --vx-border:    var(--vx-alto);
+  --vx-border-strong: var(--vx-silver);
+  --vx-accent:    var(--vx-prussian-blue);
+  --vx-accent-fg: #FFFFFF;
+  --vx-signal:    var(--vx-philippine-yellow);
+  --vx-signal-fg: var(--vx-cod-grey);
+
+  /* ===== Type families =========================================== */
+  /* Inter Tight — THE center of the system. Body, UI, headings.
+     Used cohesively everywhere; the other faces are sparing accents. */
+  --vx-font-display: 'Inter Tight', 'Helvetica Neue', Arial, sans-serif;
+  --vx-font-body:    'Inter Tight', 'Helvetica Neue', Arial, sans-serif;
+  /* Space Grotesk — accent for cyber-security / infosec contexts.
+     Slightly more technical, mechanical feel. Use sparingly. */
+  --vx-font-cyber:   'Space Grotesk', 'Inter Tight', sans-serif;
+  /* Chakra Petch — accent for kinetic / C2 / operator-console contexts.
+     Sharp diagonals, condensed verticals. Use sparingly. */
+  --vx-font-tactical: 'Chakra Petch', 'Inter Tight', sans-serif;
+  /* IBM Plex Sans Condensed — dense data tables, telemetry rows. */
+  --vx-font-condensed: 'IBM Plex Sans Condensed', 'Inter Tight', sans-serif;
+  /* Mono / callsign feel: lean tactical. */
+  --vx-font-mono:    'Chakra Petch', ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* The wordmark uses a CUSTOM typeface; never typeset it —
+     always use the PNG wordmark assets in /assets. */
+  --vx-font-wordmark: 'Chakra Petch', 'Inter Tight', sans-serif;
+
+  /* ===== Type scale — Major Third (1.250) ======================== */
+  --vx-text-xs:   12px;
+  --vx-text-sm:   14px;
+  --vx-text-base: 16px;
+  --vx-text-md:   18px;
+  --vx-text-lg:   20px;
+  --vx-text-xl:   24px;
+  --vx-text-2xl:  30px;
+  --vx-text-3xl:  38px;
+  --vx-text-4xl:  48px;
+  --vx-text-5xl:  60px;
+  --vx-text-6xl:  76px;
+  --vx-text-display: 96px;
+
+  /* ===== Weights ================================================= */
+  --vx-w-regular:  400; /* @kind font */
+  --vx-w-medium:   500; /* @kind font */
+  --vx-w-semibold: 600; /* @kind font */
+  --vx-w-bold:     700; /* @kind font */
+  --vx-w-black:    800; /* @kind font */
+
+  /* ===== Line heights ============================================ */
+  --vx-lh-tight:  1.05; /* @kind font */
+  --vx-lh-snug:   1.2; /* @kind font */
+  --vx-lh-normal: 1.5; /* @kind font */
+  --vx-lh-loose:  1.7; /* @kind font */
+
+  /* ===== Letter-spacing (negative for display, positive for eyebrow) */
+  --vx-tracking-display: -0.025em;
+  --vx-tracking-tight:   -0.015em;
+  --vx-tracking-normal:  0;
+  --vx-tracking-wide:    0.04em;
+  --vx-tracking-eyebrow: 0.16em;
+
+  /* ===== Spacing scale (4px base) ================================ */
+  --vx-space-1: 4px;
+  --vx-space-2: 8px;
+  --vx-space-3: 12px;
+  --vx-space-4: 16px;
+  --vx-space-5: 24px;
+  --vx-space-6: 32px;
+  --vx-space-7: 48px;
+  --vx-space-8: 64px;
+  --vx-space-9: 96px;
+  --vx-space-10: 128px;
+
+  /* ===== Radii — sharp/precise ===================================== */
+  --vx-radius-none: 0;
+  --vx-radius-xs:   2px;
+  --vx-radius-sm:   4px;
+  --vx-radius-md:   6px;
+  --vx-radius-lg:   10px;
+  --vx-radius-pill: 999px;
+
+  /* ===== Borders ================================================== */
+  --vx-stroke-hair: 1px;
+  --vx-stroke-rule: 2px;
+
+  /* ===== Shadows — restrained, not glowy ========================== */
+  --vx-shadow-sm: 0 1px 2px rgba(30, 30, 30, 0.06), 0 1px 1px rgba(30, 30, 30, 0.04);
+  --vx-shadow-md: 0 2px 4px rgba(30, 30, 30, 0.08), 0 4px 12px rgba(30, 30, 30, 0.06);
+  --vx-shadow-lg: 0 4px 8px rgba(30, 30, 30, 0.10), 0 16px 32px rgba(30, 30, 30, 0.10);
+  --vx-shadow-xl: 0 8px 24px rgba(30, 30, 30, 0.16), 0 32px 64px rgba(30, 30, 30, 0.18);
+  --vx-shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --vx-shadow-signal: 0 0 0 3px rgba(255, 203, 3, 0.32);
+
+  /* ===== Motion =================================================== */
+  --vx-ease-out:   cubic-bezier(0.2, 0.7, 0.2, 1); /* @kind other */
+  --vx-ease-inout: cubic-bezier(0.6, 0.05, 0.2, 1); /* @kind other */
+  --vx-dur-fast:   120ms; /* @kind other */
+  --vx-dur-base:   200ms; /* @kind other */
+  --vx-dur-slow:   360ms; /* @kind other */
+}
+
+/* ===== Dark theme overrides ====================================== */
+:root[data-theme="dark"],
+.vx-dark {
+  --vx-bg:        var(--vx-cod-grey);
+  --vx-bg-elev:   var(--vx-tundora);
+  --vx-bg-sunken: #141414;
+  --vx-fg:        var(--vx-wild-sand);
+  --vx-fg-muted:  var(--vx-silver);
+  --vx-fg-faint:  var(--vx-boulder);
+  --vx-border:    #2A2A2A;
+  --vx-border-strong: var(--vx-tundora);
+  /* Prussian Blue is FORBIDDEN against dark greys/black.
+     On dark, use yellow (or no accent) instead. */
+  --vx-accent:    var(--vx-philippine-yellow);
+  --vx-accent-fg: var(--vx-cod-grey);
+}
+
+/* =====================================================================
+   Semantic type styles — apply by class.
+   Headings: Inter Tight, tight tracking. Body: Inter.
+   ===================================================================== */
+
+.vx-display {
+  font-family: var(--vx-font-display);
+  font-size: var(--vx-text-display);
+  font-weight: var(--vx-w-bold);
+  line-height: var(--vx-lh-tight);
+  letter-spacing: var(--vx-tracking-display);
+  color: var(--vx-fg);
+}
+
+.vx-h1 {
+  font-family: var(--vx-font-display);
+  font-size: var(--vx-text-5xl);
+  font-weight: var(--vx-w-bold);
+  line-height: var(--vx-lh-tight);
+  letter-spacing: var(--vx-tracking-tight);
+  color: var(--vx-fg);
+}
+
+.vx-h2 {
+  font-family: var(--vx-font-display);
+  font-size: var(--vx-text-3xl);
+  font-weight: var(--vx-w-semibold);
+  line-height: var(--vx-lh-snug);
+  letter-spacing: var(--vx-tracking-tight);
+  color: var(--vx-fg);
+}
+
+.vx-h3 {
+  font-family: var(--vx-font-display);
+  font-size: var(--vx-text-2xl);
+  font-weight: var(--vx-w-semibold);
+  line-height: var(--vx-lh-snug);
+  color: var(--vx-fg);
+}
+
+.vx-h4 {
+  font-family: var(--vx-font-display);
+  font-size: var(--vx-text-xl);
+  font-weight: var(--vx-w-semibold);
+  line-height: var(--vx-lh-snug);
+  color: var(--vx-fg);
+}
+
+.vx-eyebrow {
+  font-family: var(--vx-font-tactical);
+  font-size: var(--vx-text-xs);
+  font-weight: var(--vx-w-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--vx-tracking-eyebrow);
+  color: var(--vx-fg-muted);
+}
+
+.vx-body {
+  font-family: var(--vx-font-body);
+  font-size: var(--vx-text-base);
+  font-weight: var(--vx-w-regular);
+  line-height: var(--vx-lh-normal);
+  color: var(--vx-fg);
+}
+
+.vx-body-lg {
+  font-family: var(--vx-font-body);
+  font-size: var(--vx-text-md);
+  font-weight: var(--vx-w-regular);
+  line-height: var(--vx-lh-normal);
+  color: var(--vx-fg);
+}
+
+.vx-lead {
+  font-family: var(--vx-font-body);
+  font-size: var(--vx-text-lg);
+  font-weight: var(--vx-w-regular);
+  line-height: var(--vx-lh-normal);
+  color: var(--vx-fg);
+}
+
+.vx-caption {
+  font-family: var(--vx-font-body);
+  font-size: var(--vx-text-sm);
+  font-weight: var(--vx-w-regular);
+  line-height: var(--vx-lh-normal);
+  color: var(--vx-fg-muted);
+}
+
+.vx-micro {
+  font-family: var(--vx-font-body);
+  font-size: var(--vx-text-xs);
+  font-weight: var(--vx-w-medium);
+  letter-spacing: 0.02em;
+  color: var(--vx-fg-muted);
+}
+
+.vx-mono {
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-text-sm);
+  font-weight: var(--vx-w-regular);
+  letter-spacing: 0;
+  color: var(--vx-fg);
+}
+
+.vx-callsign {
+  /* operator-tool callsigns, code identifiers, telemetry */
+  font-family: var(--vx-font-tactical);
+  font-size: var(--vx-text-sm);
+  font-weight: var(--vx-w-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--vx-tracking-wide);
+  color: var(--vx-fg);
+}
+
+.vx-tactical {
+  font-family: var(--vx-font-tactical);
+  font-size: var(--vx-text-lg);
+  font-weight: var(--vx-w-semibold);
+  letter-spacing: 0;
+  color: var(--vx-fg);
+}
+
+.vx-condensed {
+  font-family: var(--vx-font-condensed);
+  font-size: var(--vx-text-base);
+  font-weight: var(--vx-w-regular);
+  line-height: var(--vx-lh-normal);
+  color: var(--vx-fg);
+}
