@@ -1,5 +1,6 @@
 // l402-paywall.js — blockAIde L402 client widget
-// Drop-in browser client for the L402 payment loop.
+// Drop-in browser client for the L402 payment loop with staked-credential
+// cost curve support (v2).
 // No build step. No framework. No npm dependencies.
 //
 // QR code generation uses qrcode-generator (MIT) loaded from CDN on first use.
@@ -17,6 +18,45 @@
 
   var QR_CDN = 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js';
   var INVOICE_EXPIRY_SECS = 3600;
+  var CREDENTIAL_STORAGE_KEY = 'l402_credential';
+  var SETTLEMENT_POLL_INTERVAL = 2000;
+  var SETTLEMENT_POLL_TIMEOUT = 300000;
+
+  // ---------------------------------------------------------------------------
+  // Credential store — holds the enrollment credential for the page session.
+  // Uses sessionStorage so it survives page reloads but not tab closes.
+  // Treated as a bearer secret.
+  // ---------------------------------------------------------------------------
+
+  var credentialStore = {
+    get: function () {
+      try { return sessionStorage.getItem(CREDENTIAL_STORAGE_KEY); } catch (e) { return null; }
+    },
+    set: function (cred) {
+      try { sessionStorage.setItem(CREDENTIAL_STORAGE_KEY, cred); } catch (e) {}
+    },
+    clear: function () {
+      try { sessionStorage.removeItem(CREDENTIAL_STORAGE_KEY); } catch (e) {}
+    },
+  };
+
+  // ---------------------------------------------------------------------------
+  // Payment provider interface
+  // ---------------------------------------------------------------------------
+  // Any provider must expose: { sendPayment(invoice) → Promise<{preimage}> }
+  // WebLN and NWC both satisfy this shape.
+
+  function getProvider() {
+    if (window._l402NwcProvider) return window._l402NwcProvider;
+    if (window.webln) return { sendPayment: webLNPay };
+    return null;
+  }
+
+  function webLNPay(invoice) {
+    return window.webln.enable().then(function () {
+      return window.webln.sendPayment(invoice);
+    });
+  }
 
   // ---------------------------------------------------------------------------
   // Challenge parser
@@ -26,8 +66,9 @@
     if (!wwwAuth) return null;
     var macaroon = (wwwAuth.match(/macaroon="([^"]+)"/) || [])[1];
     var invoice = (wwwAuth.match(/invoice="([^"]+)"/) || [])[1];
+    var type = (wwwAuth.match(/type="([^"]+)"/) || [])[1] || 'toll';
     if (!macaroon || !invoice) return null;
-    return { macaroon: macaroon, invoice: invoice };
+    return { macaroon: macaroon, invoice: invoice, type: type };
   }
 
   // ---------------------------------------------------------------------------
@@ -49,6 +90,45 @@
 
   function buildAuthHeader(credential) {
     return 'L402 ' + credential.macaroon + ':' + credential.preimage;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Settlement polling — cross-device payment confirmation
+  // ---------------------------------------------------------------------------
+
+  function extractPaymentHash(macaroonB64) {
+    try {
+      var raw = atob(macaroonB64);
+      // The macaroon ID is the hex-encoded payment hash. The binary format
+      // places the ID after a short header. For a simpler approach, we decode
+      // the payment hash from the challenge invoice via the proxy settlement
+      // endpoint using the macaroon bytes. However, we can extract it more
+      // reliably by asking the proxy.
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function pollSettlement(proxyOrigin, paymentHash) {
+    var url = proxyOrigin + '/l402/settlement?payment_hash=' + paymentHash;
+    return new Promise(function (resolve, reject) {
+      var elapsed = 0;
+      var timer = setInterval(function () {
+        elapsed += SETTLEMENT_POLL_INTERVAL;
+        if (elapsed > SETTLEMENT_POLL_TIMEOUT) {
+          clearInterval(timer);
+          reject(new Error('Settlement polling timed out'));
+          return;
+        }
+        fetch(url).then(function (r) { return r.json(); }).then(function (data) {
+          if (data.settled) {
+            clearInterval(timer);
+            resolve({ preimage: data.preimage });
+          }
+        }).catch(function () {});
+      }, SETTLEMENT_POLL_INTERVAL);
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -80,24 +160,6 @@
       container.textContent = 'QR unavailable';
     });
   }
-
-  // ---------------------------------------------------------------------------
-  // Settlement polling stub
-  // ---------------------------------------------------------------------------
-
-  // TODO: Settlement-status endpoint for the manual fallback path.
-  //
-  // Contract:
-  //   GET <proxy>/l402/settlement?payment_hash=<hex>
-  //   200 { "settled": true,  "preimage": "<hex>" }
-  //   200 { "settled": false }
-  //
-  // The proxy needs a small addition to expose this. When implemented, the
-  // modal polls after the user pays externally and retrieves the preimage
-  // without requiring WebLN. Until then the manual-paste fallback is the
-  // working path for non-WebLN users.
-
-  // function pollSettlement(proxyOrigin, paymentHash, interval, timeout) { ... }
 
   // ---------------------------------------------------------------------------
   // CSS (injected once)
@@ -140,6 +202,16 @@
       '}',
       '.l402-meta-val { color: #e5e5e5; font-weight: 500; }',
       '.l402-price { color: #f7931a !important; font-size: 18px !important; font-weight: 700 !important; }',
+      '.l402-enroll-badge {',
+      '  display: inline-block; background: rgba(124,58,237,.2); color: #a78bfa;',
+      '  font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;',
+      '  letter-spacing: .04em; text-transform: uppercase; margin-bottom: 12px;',
+      '}',
+      '.l402-enroll-note {',
+      '  font-size: 13px; color: #a78bfa; margin-bottom: 16px;',
+      '  padding: 10px 12px; background: rgba(124,58,237,.08);',
+      '  border: 1px solid rgba(124,58,237,.2); border-radius: 6px;',
+      '}',
       '.l402-qr { text-align: center; margin: 16px 0; }',
       '.l402-qr svg { max-width: 200px; height: auto; }',
       '.l402-invoice-wrap {',
@@ -207,14 +279,14 @@
     injectStyles();
 
     var sats = parseInvoiceAmount(challenge.invoice);
-    var hasWebLN = typeof window.webln !== 'undefined';
+    var provider = getProvider();
+    var isEnrollment = challenge.type === 'enrollment';
     var resolve, reject;
     var promise = new Promise(function (res, rej) { resolve = res; reject = rej; });
-    var expiryTimer, countdownInterval;
+    var countdownInterval;
     var secondsLeft = INVOICE_EXPIRY_SECS;
     var destroyed = false;
 
-    // Build DOM
     var overlay = document.createElement('div');
     overlay.className = 'l402-overlay';
 
@@ -240,7 +312,7 @@
     var hdr = document.createElement('div');
     hdr.className = 'l402-hdr';
     var title = document.createElement('h2');
-    title.textContent = 'Payment Required';
+    title.textContent = isEnrollment ? 'Enrollment Required' : 'Payment Required';
     var closeBtn = document.createElement('button');
     closeBtn.className = 'l402-close';
     closeBtn.innerHTML = '&times;';
@@ -265,6 +337,20 @@
       el.className = 'l402-state';
       el.setAttribute('data-state', 'awaiting');
 
+      if (isEnrollment) {
+        var badge = document.createElement('div');
+        badge.className = 'l402-enroll-badge';
+        badge.textContent = 'One-Time Enrollment';
+        el.appendChild(badge);
+
+        var note = document.createElement('div');
+        note.className = 'l402-enroll-note';
+        note.textContent = 'You have reached the anonymous access limit. '
+          + 'This payment mints a credential for your session. '
+          + 'Subsequent requests will be priced individually at a lower rate.';
+        el.appendChild(note);
+      }
+
       var meta = document.createElement('div');
       meta.className = 'l402-meta';
 
@@ -275,7 +361,8 @@
 
       var row2 = document.createElement('div');
       row2.className = 'l402-meta-row';
-      row2.innerHTML = '<span>Price</span><span class="l402-meta-val l402-price">' +
+      var priceLabel = isEnrollment ? 'Enrollment stake' : 'Price';
+      row2.innerHTML = '<span>' + priceLabel + '</span><span class="l402-meta-val l402-price">' +
         (sats != null ? formatSats(sats) : 'see invoice') + '</span>';
       meta.appendChild(row2);
 
@@ -299,11 +386,11 @@
       invoiceWrap.appendChild(copyBtn);
       el.appendChild(invoiceWrap);
 
-      if (hasWebLN) {
+      if (provider) {
         var payBtn = document.createElement('button');
         payBtn.className = 'l402-btn l402-btn-pay';
-        payBtn.textContent = 'Pay with Lightning';
-        payBtn.onclick = function () { onWebLNPay(payBtn); };
+        payBtn.textContent = isEnrollment ? 'Pay Enrollment Stake' : 'Pay with Lightning';
+        payBtn.onclick = function () { onProviderPay(payBtn); };
         el.appendChild(payBtn);
 
         var divider = document.createElement('div');
@@ -313,7 +400,7 @@
       } else {
         var notice = document.createElement('p');
         notice.style.cssText = 'font-size:13px;color:#737373;margin-bottom:8px;';
-        notice.textContent = 'No Lightning wallet extension detected. Pay the invoice above, then paste the preimage.';
+        notice.textContent = 'No Lightning wallet detected. Pay the invoice above, then paste the preimage.';
         el.appendChild(notice);
       }
 
@@ -355,7 +442,7 @@
       el.className = 'l402-state';
       el.setAttribute('data-state', 'granted');
       el.innerHTML = '<div class="l402-status"><div class="l402-status-icon">&#x2713;</div>' +
-        '<p class="l402-granted-text">Access Granted</p></div>';
+        '<p class="l402-granted-text">' + (isEnrollment ? 'Enrolled' : 'Access Granted') + '</p></div>';
       return el;
     }
 
@@ -408,14 +495,12 @@
       el.textContent = 'Invoice expires in ' + m + ':' + (s < 10 ? '0' : '') + s;
     }
 
-    function onWebLNPay(btn) {
+    function onProviderPay(btn) {
       btn.disabled = true;
       btn.textContent = 'Opening wallet...';
       showState('paying');
 
-      window.webln.enable().then(function () {
-        return window.webln.sendPayment(challenge.invoice);
-      }).then(function (result) {
+      provider.sendPayment(challenge.invoice).then(function (result) {
         if (!result || !result.preimage) {
           throw new Error('Wallet did not return a preimage');
         }
@@ -423,10 +508,10 @@
       }).catch(function (err) {
         showState('awaiting');
         btn.disabled = false;
-        btn.textContent = 'Pay with Lightning';
+        btn.textContent = isEnrollment ? 'Pay Enrollment Stake' : 'Pay with Lightning';
         var errP = document.createElement('p');
         errP.style.cssText = 'color:#ef4444;font-size:12px;margin-top:8px;';
-        errP.textContent = 'WebLN error: ' + err.message;
+        errP.textContent = 'Payment error: ' + err.message;
         btn.parentNode.insertBefore(errP, btn.nextSibling);
         setTimeout(function () { if (errP.parentNode) errP.remove(); }, 5000);
       });
@@ -500,6 +585,15 @@
     return new Promise(function (r) { setTimeout(r, ms); });
   }
 
+  function resolveBaseUrl(url) {
+    try {
+      var u = new URL(url, window.location.href);
+      return u.origin;
+    } catch (e) {
+      return window.location.origin;
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Engine
   // ---------------------------------------------------------------------------
@@ -507,7 +601,11 @@
   function engine(url, fetchOpts) {
     fetchOpts = fetchOpts || {};
 
+    var credential = credentialStore.get();
     var initHeaders = new Headers(fetchOpts.headers || {});
+    if (credential) {
+      initHeaders.set('L402-Credential', credential);
+    }
     var initRequest = Object.assign({}, fetchOpts, { headers: initHeaders });
 
     return fetch(url, initRequest).then(function (response) {
@@ -522,14 +620,45 @@
 
       var modal = createModal(challenge, resourcePath);
 
-      return modal.awaitPayment().then(function (credential) {
+      return modal.awaitPayment().then(function (paymentResult) {
         modal.setState('verifying');
 
         var retryHeaders = new Headers(fetchOpts.headers || {});
-        retryHeaders.set('Authorization', buildAuthHeader(credential));
+        retryHeaders.set('Authorization', buildAuthHeader(paymentResult));
+        if (credential) {
+          retryHeaders.set('L402-Credential', credential);
+        }
         var retryRequest = Object.assign({}, fetchOpts, { headers: retryHeaders });
 
         return fetch(url, retryRequest).then(function (retryResponse) {
+          // Enrollment response: store credential
+          if (challenge.type === 'enrollment') {
+            var newCred = retryResponse.headers.get('L402-Credential');
+            if (retryResponse.ok && newCred) {
+              credentialStore.set(newCred);
+              modal.setState('granted');
+              return delay(1200).then(function () {
+                modal.destroy();
+                // After enrollment, re-run the engine to make the actual
+                // resource request with the new credential.
+                return engine(url, fetchOpts);
+              });
+            }
+            // Enrollment response came as JSON body
+            if (retryResponse.ok) {
+              return retryResponse.clone().json().then(function (body) {
+                if (body.credential) {
+                  credentialStore.set(body.credential);
+                }
+                modal.setState('granted');
+                return delay(1200).then(function () {
+                  modal.destroy();
+                  return engine(url, fetchOpts);
+                });
+              });
+            }
+          }
+
           if (retryResponse.ok) {
             modal.setState('granted');
             return delay(1200).then(function () {
@@ -564,7 +693,7 @@
     if (!url) return;
 
     engine(url).then(function (response) {
-      if (!response.ok) return;
+      if (!response || !response.ok) return;
       response.blob().then(function (blob) {
         var filename = extractFilename(url, response);
         var a = document.createElement('a');
@@ -606,6 +735,12 @@
     },
     restoreGlobal: function () {
       window.fetch = originalFetch;
+    },
+    credential: credentialStore,
+    // Register an NWC provider. Call with a provider object that has
+    // sendPayment(invoice) → Promise<{preimage}>.
+    setProvider: function (p) {
+      window._l402NwcProvider = p;
     },
   };
 

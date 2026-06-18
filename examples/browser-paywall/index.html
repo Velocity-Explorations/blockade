@@ -10,6 +10,7 @@
       --surface: #1a1a1a;
       --border: #2a2a2a;
       --orange: #f7931a;
+      --purple: #a78bfa;
       --text: #e5e5e5;
       --muted: #737373;
       --code-bg: #111;
@@ -32,7 +33,7 @@
     header h1 span { color: var(--orange); }
     header p { color: var(--muted); font-size: 13px; margin-top: 2px; }
     main {
-      max-width: 680px;
+      max-width: 720px;
       margin: 0 auto;
       padding: 40px 24px;
       display: flex;
@@ -95,27 +96,55 @@
       color: var(--text);
     }
     .btn:hover { background: #333; }
+    .btn-danger { background: #7f1d1d; color: #fca5a5; }
+    .btn-danger:hover { background: #991b1b; }
     .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
-    #programmatic-result {
+    .status-bar {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      padding: 12px 16px;
+      background: rgba(167, 139, 250, .08);
+      border: 1px solid rgba(167, 139, 250, .2);
+      border-radius: 6px;
+      font-size: 13px;
+      margin-bottom: 16px;
+    }
+    .status-bar .label { color: var(--purple); font-weight: 600; margin-bottom: 0; }
+    .status-bar .val { color: var(--text); }
+    .result-box {
       margin-top: 12px;
       display: none;
     }
-    .label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    .result-label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
   </style>
 </head>
 <body>
 
 <header>
   <h1><span>block</span>AIde</h1>
-  <p>L402 paywall widget demo. Requires the proxy on :8080 (make up && make setup).</p>
+  <p>L402 paywall widget demo (v2: staked-credential cost curve). Proxy on :8080 (make up && make setup).</p>
 </header>
 
 <main>
 
+  <!-- Credential status -->
+  <div class="card" id="cred-card">
+    <h2>Session Credential</h2>
+    <div class="status-bar">
+      <span class="label">Status:</span>
+      <span class="val" id="cred-status">Not enrolled</span>
+    </div>
+    <p>The widget stores your enrollment credential in sessionStorage. After the anonymous cap (5 requests), you will be prompted to enroll. Subsequent requests use the held credential with escalating prices.</p>
+    <div class="row">
+      <button class="btn btn-danger" onclick="clearCredential()">Clear Credential</button>
+    </div>
+  </div>
+
   <!-- Mode 1: Declarative -->
   <div class="card">
     <h2>Mode 1: Declarative</h2>
-    <p>One attribute, one script tag, no application code. Click the link to trigger the paywall modal.</p>
+    <p>One attribute, one script tag, no application code. Click the link to trigger the paywall modal. Repeat to see the cost curve escalate.</p>
     <div class="code">&lt;a href="http://localhost:8080/get" data-l402&gt;Download Protected Resource&lt;/a&gt;
 &lt;script src="l402-paywall.js"&gt;&lt;/script&gt;</div>
     <a href="http://localhost:8080/get" data-l402 class="demo-link">Download Protected Resource</a>
@@ -124,14 +153,14 @@
   <!-- Mode 2: Programmatic -->
   <div class="card">
     <h2>Mode 2: Programmatic</h2>
-    <p>Drop-in fetch replacement with the same call signature.</p>
+    <p>Drop-in fetch replacement with the same call signature. Each call shows the next price on the curve.</p>
     <div class="code">const res = await l402Fetch('http://localhost:8080/get');
 const data = await res.json();</div>
     <div class="row">
       <button class="btn" onclick="demoProgrammatic()">Run l402Fetch()</button>
     </div>
-    <div id="programmatic-result">
-      <div class="label">Response body</div>
+    <div id="programmatic-result" class="result-box">
+      <div class="result-label">Response body</div>
       <div class="code" id="programmatic-body" style="color:#94a3b8;max-height:200px;overflow-y:auto;white-space:pre-wrap"></div>
     </div>
   </div>
@@ -147,8 +176,8 @@ const res = await fetch('http://localhost:8080/get');</div>
       <button class="btn" id="btn-install" onclick="demoGlobal()">Install & Fetch</button>
       <button class="btn" onclick="demoRestore()">Restore Original Fetch</button>
     </div>
-    <div id="global-result" style="display:none;margin-top:12px">
-      <div class="label">Response body</div>
+    <div id="global-result" class="result-box">
+      <div class="result-label">Response body</div>
       <div class="code" id="global-body" style="color:#94a3b8;max-height:200px;overflow-y:auto;white-space:pre-wrap"></div>
     </div>
   </div>
@@ -157,9 +186,30 @@ const res = await fetch('http://localhost:8080/get');</div>
 
 <script src="l402-paywall.js"></script>
 <script>
+  function updateCredStatus() {
+    var cred = L402.credential.get();
+    var el = document.getElementById('cred-status');
+    if (cred) {
+      el.textContent = 'Enrolled (credential held in sessionStorage)';
+      el.style.color = '#a78bfa';
+    } else {
+      el.textContent = 'Not enrolled';
+      el.style.color = '';
+    }
+  }
+
+  function clearCredential() {
+    L402.credential.clear();
+    updateCredStatus();
+  }
+
+  updateCredStatus();
+  setInterval(updateCredStatus, 1000);
+
   async function demoProgrammatic() {
     try {
       var res = await l402Fetch('http://localhost:8080/get');
+      updateCredStatus();
       if (!res.ok) return;
       var data = await res.json();
       document.getElementById('programmatic-body').textContent = JSON.stringify(data, null, 2);
@@ -171,6 +221,7 @@ const res = await fetch('http://localhost:8080/get');</div>
     L402.installGlobal();
     try {
       var res = await fetch('http://localhost:8080/get');
+      updateCredStatus();
       if (!res.ok) return;
       var data = await res.json();
       document.getElementById('global-body').textContent = JSON.stringify(data, null, 2);

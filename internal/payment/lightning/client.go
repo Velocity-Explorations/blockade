@@ -78,6 +78,21 @@ func (c *Client) IsSettled(ctx context.Context, paymentHash []byte) (bool, error
 	return resp.State == lnrpc.Invoice_SETTLED, nil
 }
 
+// LookupSettlement checks whether an invoice is settled and returns the
+// preimage if so. Used by the settlement-status endpoint.
+func (c *Client) LookupSettlement(ctx context.Context, paymentHash []byte) (settled bool, preimage []byte, err error) {
+	resp, err := c.lnClient.LookupInvoice(ctx, &lnrpc.PaymentHash{
+		RHash: paymentHash,
+	})
+	if err != nil {
+		return false, nil, fmt.Errorf("LookupInvoice: %w", err)
+	}
+	if resp.State != lnrpc.Invoice_SETTLED {
+		return false, nil, nil
+	}
+	return true, resp.RPreimage, nil
+}
+
 func (c *Client) Close() error {
 	return c.conn.Close()
 }

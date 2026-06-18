@@ -13,7 +13,17 @@ type Config struct {
 	Lnd        *LndConfig       `yaml:"lnd"`
 	Bitcoind   *BitcoindConfig  `yaml:"bitcoind"`
 	RateLimit  *RateLimitConfig `yaml:"rate_limit"`
+	Curve      *CurveConfig     `yaml:"curve"`
 	Routes     []RouteConfig    `yaml:"routes"`
+}
+
+// CurveConfig controls the staked-credential cost curve. Omitting this section
+// disables v2 metering and the proxy behaves as v1 (flat toll, single-use tokens).
+type CurveConfig struct {
+	FloorTollSats      int64 `yaml:"floor_toll_sats"`
+	AnonymousCap       int   `yaml:"anonymous_cap"`
+	EscalationSlope    int64 `yaml:"escalation_slope"`
+	EnrollmentStakeSats int64 `yaml:"enrollment_stake_sats"`
 }
 
 // RateLimitConfig controls per-IP token-bucket rate limiting on unauthenticated
@@ -98,6 +108,23 @@ func validate(cfg *Config) error {
 		}
 		if cfg.RateLimit.Burst <= 0 {
 			return fmt.Errorf("rate_limit.burst must be > 0")
+		}
+	}
+	if cfg.Curve != nil {
+		if cfg.Curve.FloorTollSats <= 0 {
+			return fmt.Errorf("curve.floor_toll_sats must be > 0")
+		}
+		if cfg.Curve.AnonymousCap <= 0 {
+			return fmt.Errorf("curve.anonymous_cap must be > 0")
+		}
+		if cfg.Curve.EscalationSlope <= 0 {
+			return fmt.Errorf("curve.escalation_slope must be > 0")
+		}
+		if cfg.Curve.EnrollmentStakeSats <= 0 {
+			return fmt.Errorf("curve.enrollment_stake_sats must be > 0")
+		}
+		if cfg.Bitcoind != nil {
+			return fmt.Errorf("curve metering requires lnd backend (Lightning only)")
 		}
 	}
 	if len(cfg.Routes) == 0 {

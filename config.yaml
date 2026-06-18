@@ -12,6 +12,17 @@ listen_addr: ":8080"
 #   requests_per_second: 5
 #   burst: 10
 
+# v2 cost curve: staked-credential escalation. Omit to disable (v1 flat toll).
+# floor_toll_sats:       base price per request (Tier 1 and curve floor)
+# anonymous_cap:         max unpaid-for-enrollment requests per IP before enrollment is required
+# escalation_slope:      sats added per request position under a credential
+# enrollment_stake_sats: non-refundable fee to mint a staked identity
+curve:
+  floor_toll_sats: 10
+  anonymous_cap: 5
+  escalation_slope: 10
+  enrollment_stake_sats: 100000
+
 lnd:
   host: "lnd-server:10009"
   tls_cert_path: "/lnd/tls.cert"

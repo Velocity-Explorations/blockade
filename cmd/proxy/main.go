@@ -57,8 +57,6 @@ func main() {
 			_ = lndClient.Close()
 			log.Fatalf("create lightning verifier: %v", err)
 		}
-		// lndClient is not deferred — the process lifetime equals the server
-		// lifetime; the OS reclaims the gRPC connection on exit.
 		verifier = lnVerifier
 
 	case cfg.Bitcoind != nil:
@@ -69,6 +67,14 @@ func main() {
 	handler, err := proxy.New(cfg.Routes, verifier, cfg.RateLimit)
 	if err != nil {
 		log.Fatalf("create proxy: %v", err)
+	}
+
+	if cfg.Curve != nil {
+		principals := store.NewMemPrincipalStore()
+		handler.EnableCurve(cfg.Curve, principals)
+		log.Printf("cost curve enabled: floor=%d slope=%d stake=%d cap=%d",
+			cfg.Curve.FloorTollSats, cfg.Curve.EscalationSlope,
+			cfg.Curve.EnrollmentStakeSats, cfg.Curve.AnonymousCap)
 	}
 
 	log.Printf("btc-paywall listening on %s", cfg.ListenAddr)
