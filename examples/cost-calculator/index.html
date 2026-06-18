@@ -1,9 +1,10 @@
 <!--
   blockAIde — Cost of Attack calculator
   Single self-contained file. No build step, no dependencies, no network required.
-  Model: per-request price(N) = floor + slope*(N-1)  (linear ramp -> quadratic cumulative).
+  Model: every principal pays an enrollment stake up front, then per-request price(N) = floor + slope*(N-1)
+  (linear ramp -> quadratic cumulative).
   Optimal-reset interval m* = sqrt(2*stake/slope).
-  Amortized per-request floor under optimal resetting = sqrt(2*stake*slope).
+  Amortized per-request floor under optimal resetting = floor + sqrt(2*stake*slope).
 -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -88,7 +89,7 @@
 <header>
   <div class="wordmark">block<b>AI</b>de</div>
   <div class="eyebrow">Cost of Attack</div>
-  <p class="thesis">Access control priced in physical cost. Set the dials and watch what an adversary pays to operate at scale, against what a legitimate user pays once. The question is not who they are. It is what it costs them to be here.</p>
+  <p class="thesis">Access control priced in physical cost. Every principal pays an enrollment stake up front before making a single request. Set the dials and watch what an adversary pays to operate at scale, against what a legitimate user pays once. The question is not who they are. It is what it costs them to be here.</p>
 </header>
 
 <div class="grid">
@@ -148,7 +149,7 @@
 </div>
 
 <footer>
-  Model: per-request price <code>p(N) = floor + slope&middot;(N&minus;1)</code> for the Nth request under one credential, so cumulative cost grows with the square of volume (superlinear, not exponential). To escape the curve an adversary resets to a fresh staked identity; the cost-minimizing interval is <code>m* = &radic;(2&middot;stake / slope)</code>, which holds the amortized cost at <code>&radic;(2&middot;stake&middot;slope)</code> sats per request no matter how they reset. Undefended cost is <code>floor&middot;N</code>. Linear view auto-zooms to where the curve is legible; full-campaign totals are in the panel. Figures are illustrative; the demo runs on signet where sats carry no value.
+  Model: every principal pays an enrollment stake up front to obtain a credential. Per-request price is then <code>p(N) = floor + slope&middot;(N&minus;1)</code> for the Nth request under that credential, so cumulative cost grows with the square of volume (superlinear, not exponential). To escape the curve an adversary burns the stake again on a fresh identity; the cost-minimizing interval is <code>m* = &radic;(2&middot;stake / slope)</code>, which holds the amortized cost at <code>floor + &radic;(2&middot;stake&middot;slope)</code> sats per request no matter how they reset. Undefended cost is <code>floor&middot;N</code>. Linear view auto-zooms to where the curve is legible; full-campaign totals are in the panel. Figures are illustrative; the demo runs on signet where sats carry no value.
 </footer>
 
 <script>
@@ -188,8 +189,7 @@
     var slope=S.slope,stake=S.stake,camp=S.camp,floor=S.floor;
     var noCurve=slope<=0;
     var mStar=noCurve?camp:Math.sqrt(2*stake/slope);
-    var amortized=noCurve?floor:Math.sqrt(2*stake*slope);
-    if(amortized<floor)amortized=floor;
+    var amortized=noCurve?floor:floor+Math.sqrt(2*stake*slope);
     var flatTotal=flatCum(camp),resetTotal=amortized*camp,mult=resetTotal/flatTotal;
     var amortUsd=usd(amortized),deterred=amortUsd>=S.value;
     return {slope:slope,stake:stake,camp:camp,floor:floor,noCurve:noCurve,mStar:mStar,
