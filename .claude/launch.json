@@ -6,6 +6,12 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["serve", "examples/browser-paywall", "-l", "8084", "--no-clipboard"],
       "port": 8084
+    },
+    {
+      "name": "cost-calculator",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "examples/cost-calculator", "-l", "8085", "--no-clipboard"],
+      "port": 8085
     }
   ]
 }

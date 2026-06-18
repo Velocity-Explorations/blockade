@@ -1,0 +1,281 @@
+<!--
+  blockAIde — Cost of Attack calculator
+  Single self-contained file. No build step, no dependencies, no network required.
+  Model: per-request price(N) = floor + slope*(N-1)  (linear ramp -> quadratic cumulative).
+  Optimal-reset interval m* = sqrt(2*stake/slope).
+  Amortized per-request floor under optimal resetting = sqrt(2*stake*slope).
+-->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>blockAIde — Cost of Attack</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Inter:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#111111; --panel:#181818; --panel-2:#1f1f1f; --line:#2c2c2c;
+    --ink:#ECECEC; --ink-dim:#8C8C8C; --ink-faint:#5C5C5C;
+    --gold:#F9BE3C; --gold-soft:rgba(249,190,60,.13);
+    --slate:#6E7A8A; --amber:#E08A2B; --ok:#56C596; --bad:#E5484D;
+    --mono:'Space Mono',ui-monospace,Menlo,Consolas,monospace;
+    --disp:'Space Grotesk',system-ui,sans-serif;
+    --body:'Inter',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);-webkit-font-smoothing:antialiased}
+  body{padding:28px clamp(16px,4vw,48px) 56px;max-width:1240px;margin:0 auto}
+  header{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 18px;border-bottom:1px solid var(--line);padding-bottom:18px}
+  .wordmark{font-family:var(--disp);font-weight:700;font-size:clamp(26px,4vw,40px);letter-spacing:-.01em}
+  .wordmark b{color:var(--gold)}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink-faint)}
+  .thesis{flex-basis:100%;color:var(--ink-dim);font-size:15px;max-width:62ch;margin-top:6px;line-height:1.5}
+  .grid{display:grid;grid-template-columns:300px 1fr;gap:24px;margin-top:24px;align-items:start}
+  @media(max-width:840px){.grid{grid-template-columns:1fr}}
+  .controls{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 18px 8px}
+  .ctl{margin-bottom:18px}.ctl:last-child{margin-bottom:10px}
+  .ctl label{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;color:var(--ink-dim);letter-spacing:.02em;margin-bottom:8px}
+  .ctl .val{font-family:var(--mono);color:var(--gold);font-size:13px}
+  input[type=range]{width:100%;-webkit-appearance:none;appearance:none;height:3px;background:var(--line);border-radius:2px;outline-offset:4px}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:16px;height:16px;border-radius:50%;background:var(--gold);cursor:pointer;border:2px solid #111}
+  input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--gold);cursor:pointer;border:2px solid #111}
+  input[type=range]:focus-visible{outline:2px solid var(--gold)}
+  .hint{font-size:11px;color:var(--ink-faint);margin-top:6px;line-height:1.4}
+  .stage{display:flex;flex-direction:column;gap:18px}
+  .chartwrap{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 16px 10px;position:relative}
+  .chart-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:12px;flex-wrap:wrap}
+  .chart-title{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-faint)}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+  .seg button{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;background:transparent;color:var(--ink-dim);border:0;padding:6px 12px;cursor:pointer}
+  .seg button[aria-pressed=true]{background:var(--gold);color:#111}
+  .seg button:focus-visible{outline:2px solid var(--gold);outline-offset:-2px}
+  svg{display:block;width:100%;height:auto}
+  .legend{display:flex;flex-wrap:wrap;gap:14px 20px;margin-top:8px;font-size:12px;color:var(--ink-dim)}
+  .legend span{display:inline-flex;align-items:center;gap:7px}
+  .swatch{width:18px;height:0;border-top-width:3px;border-top-style:solid;display:inline-block}
+  .readout{display:grid;grid-template-columns:1.3fr 1fr;gap:14px}
+  @media(max-width:560px){.readout{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+  .card .k{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:8px}
+  .big{font-family:var(--mono);font-weight:700;font-size:clamp(28px,4.4vw,40px);line-height:1;color:var(--gold)}
+  .big .sub{display:block;font-weight:400;font-size:13px;color:var(--ink-dim);margin-top:8px;letter-spacing:0}
+  .rows{display:flex;flex-direction:column;gap:10px}
+  .row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:13px}
+  .row .rk{color:var(--ink-dim)}.row .rv{font-family:var(--mono);color:var(--ink)}
+  .row .rv.flat{color:var(--slate)}.row .rv.gold{color:var(--gold)}
+  .verdict{grid-column:1/-1;border-radius:10px;padding:16px 18px;border:1px solid var(--line);display:flex;align-items:center;gap:16px;background:var(--panel)}
+  .chip{font-family:var(--mono);font-weight:700;font-size:13px;letter-spacing:.12em;text-transform:uppercase;padding:7px 12px;border-radius:6px;white-space:nowrap}
+  .chip.ok{color:#06281c;background:var(--ok)}.chip.bad{color:#2a0708;background:var(--bad)}
+  .verdict p{margin:0;font-size:13px;color:var(--ink-dim);line-height:1.5}.verdict p b{color:var(--ink)}
+  footer{margin-top:30px;border-top:1px solid var(--line);padding-top:16px;color:var(--ink-faint);font-size:12px;line-height:1.6}
+  footer code{font-family:var(--mono);color:var(--ink-dim)}
+  @media(prefers-reduced-motion:no-preference){.series,.marker,.gap{transition:all .18s ease}}
+</style>
+
+<header>
+  <div class="wordmark">block<b>AI</b>de</div>
+  <div class="eyebrow">Cost of Attack</div>
+  <p class="thesis">Access control priced in physical cost. Set the dials and watch what an adversary pays to operate at scale, against what a legitimate user pays once. The question is not who they are. It is what it costs them to be here.</p>
+</header>
+
+<div class="grid">
+  <form class="controls" id="controls" autocomplete="off">
+    <div class="ctl"><label for="floor">Floor toll <span class="val" id="floor-v"></span></label>
+      <input type="range" id="floor" min="1" max="200" step="1" value="10">
+      <div class="hint">Price of a single request. What a one-off legitimate user pays.</div></div>
+    <div class="ctl"><label for="slope">Escalation rate <span class="val" id="slope-v"></span></label>
+      <input type="range" id="slope" min="0" max="100" step="1" value="10">
+      <div class="hint">Extra sats added per request, per principal. Zero means a flat toll with no curve.</div></div>
+    <div class="ctl"><label for="stake">Enrollment stake <span class="val" id="stake-v"></span></label>
+      <input type="range" id="stake" min="3" max="7" step="0.01" value="5">
+      <div class="hint">Cost to mint one identity. The price of starting over after resetting to dodge the curve.</div></div>
+    <div class="ctl"><label for="camp">Attack campaign size <span class="val" id="camp-v"></span></label>
+      <input type="range" id="camp" min="3" max="7" step="0.01" value="6">
+      <div class="hint">How many requests the adversary needs. Mass probing lives at the high end.</div></div>
+    <div class="ctl"><label for="value">Value to attacker / request <span class="val" id="value-v"></span></label>
+      <input type="range" id="value" min="-2" max="3" step="0.01" value="0">
+      <div class="hint">What one successful request is worth to them. The deterrence threshold.</div></div>
+    <div class="ctl"><label for="btc">BTC price <span class="val" id="btc-v"></span></label>
+      <input type="range" id="btc" min="20000" max="160000" step="500" value="64000">
+      <div class="hint">For dollar translation only. Editable because it moves.</div></div>
+  </form>
+
+  <div class="stage">
+    <div class="chartwrap">
+      <div class="chart-head">
+        <div class="chart-title" id="chart-title">Cumulative cost vs requests</div>
+        <div class="seg" role="group" aria-label="Axis scale">
+          <button type="button" id="mode-linear" aria-pressed="true">Linear</button>
+          <button type="button" id="mode-log" aria-pressed="false">Log</button>
+        </div>
+      </div>
+      <svg id="chart" viewBox="0 0 720 420" role="img" aria-label="Cumulative attack cost as request volume grows"></svg>
+      <div class="legend">
+        <span><i class="swatch" style="border-color:var(--slate)"></i>Undefended (flat toll)</span>
+        <span><i class="swatch" style="border-color:var(--gold)"></i>blockAIde floor (optimal resetting)</span>
+        <span><i class="swatch" style="border-color:var(--amber);border-top-style:dashed"></i>One credential (the cliff they avoid)</span>
+      </div>
+    </div>
+
+    <div class="readout">
+      <div class="card"><div class="k">Amortized cost per attack</div>
+        <div class="big" id="amortized">&mdash;<span class="sub" id="amortized-note"></span></div></div>
+      <div class="card"><div class="k">At your campaign size</div>
+        <div class="rows">
+          <div class="row"><span class="rk">Undefended total</span><span class="rv flat" id="flat-total">&mdash;</span></div>
+          <div class="row"><span class="rk">blockAIde total</span><span class="rv gold" id="reset-total">&mdash;</span></div>
+          <div class="row"><span class="rk">Cost multiplier</span><span class="rv" id="mult">&mdash;</span></div>
+          <div class="row"><span class="rk">Optimal reset every</span><span class="rv" id="mstar">&mdash;</span></div>
+        </div></div>
+      <div class="verdict" id="verdict">
+        <span class="chip ok" id="chip">&mdash;</span>
+        <p id="verdict-text"></p></div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  Model: per-request price <code>p(N) = floor + slope&middot;(N&minus;1)</code> for the Nth request under one credential, so cumulative cost grows with the square of volume (superlinear, not exponential). To escape the curve an adversary resets to a fresh staked identity; the cost-minimizing interval is <code>m* = &radic;(2&middot;stake / slope)</code>, which holds the amortized cost at <code>&radic;(2&middot;stake&middot;slope)</code> sats per request no matter how they reset. Undefended cost is <code>floor&middot;N</code>. Linear view auto-zooms to where the curve is legible; full-campaign totals are in the panel. Figures are illustrative; the demo runs on signet where sats carry no value.
+</footer>
+
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id);};
+  var SAT_PER_BTC=1e8;
+  Math.log10=Math.log10||function(x){return Math.log(x)/Math.LN10;};
+  var mode='linear';
+
+  function fmtInt(n){return Math.round(n).toLocaleString('en-US');}
+  function fmtSats(n){if(n>=1e7){return (n/SAT_PER_BTC).toLocaleString('en-US',{maximumFractionDigits:3})+' BTC';}return fmtInt(n)+' sats';}
+  function fmtUSD(n){if(n<1){return '$'+n.toFixed(n<0.01?4:3);}if(n<1000){return '$'+n.toLocaleString('en-US',{maximumFractionDigits:2});}if(n<1e6){return '$'+(n/1e3).toLocaleString('en-US',{maximumFractionDigits:1})+'K';}if(n<1e9){return '$'+(n/1e6).toLocaleString('en-US',{maximumFractionDigits:2})+'M';}return '$'+(n/1e9).toLocaleString('en-US',{maximumFractionDigits:2})+'B';}
+  function fmtReq(n){if(n>=1e6){return (n/1e6).toLocaleString('en-US',{maximumFractionDigits:n>=1e7?0:1})+'M';}if(n>=1e3){return (n/1e3).toLocaleString('en-US',{maximumFractionDigits:0})+'K';}return fmtInt(n);}
+  function fmtCompact(n){if(n>=1e6){return (n/1e6).toLocaleString('en-US',{maximumFractionDigits:1})+'M';}if(n>=1e3){return (n/1e3).toLocaleString('en-US',{maximumFractionDigits:0})+'K';}return fmtInt(n);}
+
+  var S={floor:10,slope:10,stake:1e5,camp:1e6,value:1,btc:64000};
+  function readControls(){
+    S.floor=+$('floor').value; S.slope=+$('slope').value;
+    S.stake=Math.round(Math.pow(10,+$('stake').value));
+    S.camp =Math.round(Math.pow(10,+$('camp').value));
+    S.value=Math.pow(10,+$('value').value); S.btc=+$('btc').value;
+  }
+  function usd(sats){return sats*S.btc/SAT_PER_BTC;}
+  function curveCum(N){return S.floor*N + S.slope*N*(N-1)/2;}
+  function flatCum(N){return S.floor*N;}
+
+  function niceNum(range,round){var exp=Math.floor(Math.log10(range)),f=range/Math.pow(10,exp),nf;
+    if(round){nf=f<1.5?1:f<3?2:f<7?5:10;}else{nf=f<=1?1:f<=2?2:f<=5?5:10;}return nf*Math.pow(10,exp);}
+  function ticks(min,max,n){if(max<=min)return [min];var range=niceNum(max-min,false),step=niceNum(range/(n-1),true);
+    var gmin=Math.floor(min/step)*step,gmax=Math.ceil(max/step)*step,out=[];for(var v=gmin;v<=gmax+step*0.5;v+=step)out.push(v);return out;}
+
+  var W=720,H=420,padL=58,padR=18,padT=14,padB=34;
+  var x0=padL,x1=W-padR,y0=H-padB,y1=padT;
+
+  function compute(){
+    readControls();
+    var slope=S.slope,stake=S.stake,camp=S.camp,floor=S.floor;
+    var noCurve=slope<=0;
+    var mStar=noCurve?camp:Math.sqrt(2*stake/slope);
+    var amortized=noCurve?floor:Math.sqrt(2*stake*slope);
+    if(amortized<floor)amortized=floor;
+    var flatTotal=flatCum(camp),resetTotal=amortized*camp,mult=resetTotal/flatTotal;
+    var amortUsd=usd(amortized),deterred=amortUsd>=S.value;
+    return {slope:slope,stake:stake,camp:camp,floor:floor,noCurve:noCurve,mStar:mStar,
+            amortized:amortized,flatTotal:flatTotal,resetTotal:resetTotal,mult:mult,amortUsd:amortUsd,deterred:deterred};
+  }
+
+  function render(){
+    var c=compute();
+    var X,Y,xMaxView,yMaxV,grid='',campOnScreen=true;
+
+    if(mode==='log'){
+      var xMin=1,xMax=Math.max(10,c.camp),yMin=Math.max(1,c.floor/2),yMax=Math.max(c.resetTotal,c.flatTotal)*3;
+      var lx0=Math.log10(xMin),lx1=Math.log10(xMax),ly0=Math.log10(yMin),ly1=Math.log10(yMax);
+      X=function(v){return x0+(Math.log10(v)-lx0)/(lx1-lx0)*(x1-x0);};
+      Y=function(v){return y0+(Math.log10(Math.max(v,1e-9))-ly0)/(ly1-ly0)*(y1-y0);};
+      xMaxView=xMax;
+      for(var gx=Math.ceil(lx0);gx<=Math.floor(lx1);gx++){var px=X(Math.pow(10,gx));
+        grid+='<line x1="'+px.toFixed(1)+'" y1="'+y1+'" x2="'+px.toFixed(1)+'" y2="'+y0+'" stroke="var(--line)"/>';
+        grid+='<text x="'+px.toFixed(1)+'" y="'+(y0+18)+'" fill="var(--ink-faint)" font-size="10" font-family="var(--mono)" text-anchor="middle">'+fmtReq(Math.pow(10,gx))+'</text>';}
+      for(var gy=Math.ceil(ly0);gy<=Math.floor(ly1);gy++){var py=Y(Math.pow(10,gy));
+        grid+='<line x1="'+x0+'" y1="'+py.toFixed(1)+'" x2="'+x1+'" y2="'+py.toFixed(1)+'" stroke="var(--line)"/>';
+        grid+='<text x="'+(x0-8)+'" y="'+(py+3).toFixed(1)+'" fill="var(--ink-faint)" font-size="10" font-family="var(--mono)" text-anchor="end">'+fmtCompact(Math.pow(10,gy))+'</text>';}
+    }else{
+      xMaxView=Math.min(c.camp,Math.max(50,Math.round(c.mStar*8)));
+      if(c.noCurve)xMaxView=c.camp;
+      yMaxV=Math.max(curveCum(xMaxView),c.amortized*xMaxView,c.floor*xMaxView)*1.05;
+      campOnScreen=c.camp<=xMaxView;
+      X=function(v){return x0+(v-1)/(xMaxView-1)*(x1-x0);};
+      Y=function(v){return y0-(v/yMaxV)*(y0-y1);};
+      var xt=ticks(1,xMaxView,6);
+      for(var i=0;i<xt.length;i++){if(xt[i]<1||xt[i]>xMaxView)continue;var pxl=X(xt[i]);
+        grid+='<line x1="'+pxl.toFixed(1)+'" y1="'+y1+'" x2="'+pxl.toFixed(1)+'" y2="'+y0+'" stroke="var(--line)"/>';
+        grid+='<text x="'+pxl.toFixed(1)+'" y="'+(y0+18)+'" fill="var(--ink-faint)" font-size="10" font-family="var(--mono)" text-anchor="middle">'+fmtCompact(xt[i])+'</text>';}
+      var yt=ticks(0,yMaxV,6);
+      for(var j=0;j<yt.length;j++){if(yt[j]<0||yt[j]>yMaxV)continue;var pyl=Y(yt[j]);
+        grid+='<line x1="'+x0+'" y1="'+pyl.toFixed(1)+'" x2="'+x1+'" y2="'+pyl.toFixed(1)+'" stroke="var(--line)"/>';
+        grid+='<text x="'+(x0-8)+'" y="'+(pyl+3).toFixed(1)+'" fill="var(--ink-faint)" font-size="10" font-family="var(--mono)" text-anchor="end">'+fmtCompact(yt[j])+'</text>';}
+    }
+
+    var pts=140,flatP=[],resetP=[],curveP=[];
+    for(var k=0;k<=pts;k++){
+      var N;
+      if(mode==='log'){N=Math.pow(10,Math.log10(1)+(Math.log10(xMaxView))*k/pts);}
+      else{N=1+(xMaxView-1)*k/pts;}
+      flatP.push([X(N),Y(flatCum(N))]);
+      resetP.push([X(N),Y(c.amortized*N)]);
+      curveP.push([X(N),Y(curveCum(N))]);
+    }
+    function path(a){return 'M'+a.map(function(p){return p[0].toFixed(1)+' '+p[1].toFixed(1);}).join(' L');}
+    var gapPath=path(resetP)+' L'+flatP.slice().reverse().map(function(p){return p[0].toFixed(1)+' '+p[1].toFixed(1);}).join(' L')+' Z';
+
+    var marker='';
+    if(campOnScreen){var mx=X(c.camp);
+      marker='<line class="marker" x1="'+mx.toFixed(1)+'" y1="'+y1+'" x2="'+mx.toFixed(1)+'" y2="'+y0+'" stroke="var(--gold)" stroke-width="1" stroke-dasharray="3 3" opacity=".6"/>';
+    }else{
+      marker='<text x="'+(x1-4)+'" y="'+(y1+12)+'" fill="var(--ink-faint)" font-size="10" font-family="var(--mono)" text-anchor="end">campaign N='+fmtReq(c.camp)+' → (totals in panel)</text>';
+    }
+    var luN=Math.min(5,xMaxView),lux=X(luN),luy=Y(flatCum(luN));
+
+    var svg='<defs><clipPath id="plot"><rect x="'+x0+'" y="'+y1+'" width="'+(x1-x0)+'" height="'+(y0-y1)+'"/></clipPath></defs>'+grid+
+      '<g clip-path="url(#plot)">'+
+        '<path class="gap" d="'+gapPath+'" fill="var(--gold-soft)" stroke="none"/>'+
+        '<path class="series" d="'+path(curveP)+'" fill="none" stroke="var(--amber)" stroke-width="2" stroke-dasharray="5 4" opacity=".85"/>'+
+        '<path class="series" d="'+path(flatP)+'" fill="none" stroke="var(--slate)" stroke-width="2.5"/>'+
+        '<path class="series" d="'+path(resetP)+'" fill="none" stroke="var(--gold)" stroke-width="2.5"/>'+
+        marker+
+        '<circle class="marker" cx="'+lux.toFixed(1)+'" cy="'+luy.toFixed(1)+'" r="4" fill="var(--ink)"/>'+
+        '<text x="'+(lux+8).toFixed(1)+'" y="'+(luy-7).toFixed(1)+'" fill="var(--ink-dim)" font-size="10" font-family="var(--mono)">legit user</text>'+
+      '</g>'+
+      '<text x="'+((x0+x1)/2)+'" y="'+(H-2)+'" fill="var(--ink-faint)" font-size="10" font-family="var(--mono)" text-anchor="middle">requests</text>'+
+      '<text x="14" y="'+((y0+y1)/2)+'" fill="var(--ink-faint)" font-size="10" font-family="var(--mono)" text-anchor="middle" transform="rotate(-90 14 '+((y0+y1)/2)+')">cumulative cost (sats)</text>';
+    $('chart').innerHTML=svg;
+
+    $('chart-title').textContent='Cumulative cost vs requests · '+(mode==='log'?'log–log (full range)':'linear (auto-zoomed)');
+
+    $('amortized').firstChild.nodeValue=fmtSats(c.amortized)+' ';
+    $('amortized-note').textContent='≈ '+fmtUSD(c.amortUsd)+' per request · the floor no reset strategy can beat';
+    $('flat-total').textContent=fmtUSD(usd(c.flatTotal));
+    $('reset-total').textContent=fmtUSD(usd(c.resetTotal));
+    $('mult').textContent=c.noCurve?'×1 (no curve)':('×'+(c.mult>=10?Math.round(c.mult):c.mult.toFixed(1)).toLocaleString('en-US'));
+    $('mstar').textContent=c.noCurve?'never needed':('~'+fmtInt(c.mStar)+' requests');
+
+    var chip=$('chip'),vt=$('verdict-text');
+    if(c.deterred){chip.className='chip ok';chip.textContent='Deterred';
+      vt.innerHTML='Each attempt costs <b>'+fmtUSD(c.amortUsd)+'</b>, above the <b>'+fmtUSD(S.value)+'</b> it is worth to the attacker. Mass probing loses money on every request.';
+    }else{chip.className='chip bad';chip.textContent='Not deterred';
+      vt.innerHTML='Each attempt costs <b>'+fmtUSD(c.amortUsd)+'</b>, below the <b>'+fmtUSD(S.value)+'</b> it is worth to the attacker. Raise the stake or the escalation rate until the floor clears that line.';}
+
+    $('floor-v').textContent=S.floor+' sats';
+    $('slope-v').textContent=S.slope===0?'flat':('+'+S.slope+'/req');
+    $('stake-v').textContent=fmtSats(S.stake)+' ('+fmtUSD(usd(S.stake))+')';
+    $('camp-v').textContent=fmtReq(S.camp)+' req';
+    $('value-v').textContent=fmtUSD(S.value)+'/req';
+    $('btc-v').textContent='$'+S.btc.toLocaleString('en-US');
+  }
+
+  function setMode(m){mode=m;$('mode-linear').setAttribute('aria-pressed',m==='linear');$('mode-log').setAttribute('aria-pressed',m==='log');render();}
+  $('mode-linear').addEventListener('click',function(){setMode('linear');});
+  $('mode-log').addEventListener('click',function(){setMode('log');});
+  Array.prototype.forEach.call(document.querySelectorAll('#controls input'),function(el){el.addEventListener('input',render);});
+  render();
+})();
+</script>
